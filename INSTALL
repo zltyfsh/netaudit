@@ -1,0 +1,24 @@
+Installation guide
+==================
+
+1) System wide installation
+
+To install into a directory accessible for all users
+you must have root/wheel access.
+
+Procedure:
+$ perl Build.PL
+$ ./Build
+$ sudo ./Build install
+
+
+2) Installation in own home directory
+
+This is useful when testing out the software. Of course
+this do *not* require any root/wheel access.
+
+Procedure:
+$ perl Build.PL --install_base=~
+$ ./Build
+$ ./Build install
+

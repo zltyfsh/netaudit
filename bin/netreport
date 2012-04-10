@@ -1,0 +1,652 @@
+#!/usr/bin/perl
+#
+# Copyright (c) 2012, Per Carlson
+#
+# This program is free software; you can redistribute it and/or 
+# modify it under the same terms as Perl 5.14. For more details, 
+# see the full text of the licenses in the directory LICENSES.
+#
+
+use warnings;
+use strict;
+use feature 'switch';
+
+use FindBin;
+use lib "$FindBin::Bin/../lib/";
+use lib "$FindBin::Bin/../lib/perl5";
+use Netaudit::Db;
+use Getopt::Long;
+use Pod::Usage;
+use POSIX qw{ strftime };
+use Text::Table;
+use IO::Prompt;
+use Algorithm::Diff;
+use Readonly;
+
+use Term::ANSIColor;
+*colored = \&Term::ANSIColor::colored;
+# early versions of Term::ANSIColor don't have colorstrip, in those
+# cases use a dummy colored sub (else the tables won't be properly aligned)
+*colorstrip = \&Term::ANSIColor::colorstrip;
+defined &colorstrip or *colored = sub { shift };
+
+Readonly my $DATABASE => './netaudit.db';
+
+# options
+my %opts;
+
+GetOptions(
+    \%opts, 'database|d=s', 'help|?', 'man',
+    'list:i',       # list runs
+    'purge=s',      # purge runs
+    'full:s',       # full reporting of one run
+    'compare:s',    # differential reporting from two runs
+    'isis:s',       # check if isis v4 and v6 have same topology
+) or pod2usage(2);
+pod2usage(1) if $opts{help};
+pod2usage( -exitval => 2, -verbose => 2 ) if $opts{man};
+
+# AoH of tables and their options
+my @tables = (
+    {
+        table   => 'route_summary',
+        descr   => 'Global routing summary',
+        columns => 'Hostname,AFI,Connected,Static,Local,ISIS,BGP',
+        order   => 'hostname,afi',
+    },
+
+    {
+        table   => 'isis_neighbour',
+        descr   => 'IS-IS neighbours',
+        columns => 'Hostname,Neighbour,Interface,State',
+        order   => 'hostname,interface',
+    },
+
+    {
+        table   => 'isis_topology',
+        descr   => 'IS-IS topology',
+        columns => 'Hostname,Host,AFI,Interface,Metric',
+        order   => 'hostname,host,afi',
+    },
+
+    {
+        table   => 'bgp',
+        descr   => 'BGP peerings',
+        columns => 'Hostname,Peer,AFI,VRF,ASN,Prefixes',
+        order   => 'hostname,peer,afi,vrf',
+    },
+
+    {
+        table   => 'interface',
+        descr   => "Interfaces with status and properties",
+        columns => 'Hostname,Descr,AdminStatus,OperStatus,IPv6Status,MTU,Speed',
+        order   => 'hostname,descr',
+    },
+
+    {
+        table   => 'vrf',
+        descr   => "VRF's and interfaces",
+        columns => 'Hostname,VRF,Active,Associated',
+        order   => 'hostname,vrf',
+    },
+
+    {
+        table   => 'pwe3',
+        descr   => 'PWE3 circuits',
+        columns => 'Hostname,Peer,Interface,Status',
+        order   => 'hostname,peer',
+    }
+);
+
+my $dbfile = $opts{database} || $DATABASE;
+( -f $dbfile ) or die "Cannot find database file $dbfile: $!\n";
+
+my $db = eval { Netaudit::Db->new( database => $dbfile ) };
+die $@ if $@;
+
+# find our reporting limits
+my $lastrun = getrun(0);
+
+# if we should list the runs, just do that and exit
+if ( exists $opts{list} ) {
+    listruns( $opts{list} || 99999 );
+}
+
+elsif ( exists $opts{purge} ) {
+    purgeruns( split( /-/, $opts{purge} ) );
+}
+
+elsif ( exists $opts{isis} ) {
+    # if $isis = 0 (or undef), use run from last run
+    isisreport( $opts{isis} || $lastrun );
+}
+
+elsif ( exists $opts{full} ) {
+    # if $full = 0 (or undef), use run from last run
+    fullreport( $opts{full} || $lastrun );
+}
+
+elsif ( exists $opts{compare} ) {
+    my ( $from, $to ) = ( '', '1' );    # compare last two runs as default
+
+    # use LIST if given
+    ( $from, $to ) = split( /-/, $opts{compare} ) if $opts{compare};
+
+    # if $from = '' then we have a "-N" option
+    if ( $from eq '' ) {
+        $from = $lastrun - $to;
+        $to   = $lastrun;
+    }
+    diffreport( $from, $to );
+}
+
+# if we end up here no operational mode is selected
+else {
+    pod2usage( -exitval => 2, -msg => "No operational mode is selected" );
+}
+
+exit;
+
+#---
+
+sub fullreport {
+    my ($run) = @_;
+
+    my ( undef, $epoch ) = getrun($run)
+      or die "Run $run do not exist. Use --list to view available runs.\n";
+
+    printf "Full report of the audit run at: %s\n\n",
+      strftime( "%F %H:%M", localtime($epoch) );
+
+    foreach my $href (@tables) {
+        my @colspec =
+          ( \'| ', map { ( $_, \' | ' ) } split( /,/, $href->{columns} ) );
+        # replace the last col attribute with one without a trailing space
+        $colspec[-1] = \' |';
+        my $table = Text::Table->new(@colspec);
+
+        my $stmt = sprintf "SELECT %s FROM %s WHERE run = ? ORDER BY %s",
+          lc( $href->{columns} ), $href->{table}, $href->{order};
+        my $aref = $db->select_aref( $stmt, $run );
+
+        foreach my $rref ( @{$aref} ) {
+            $table->add( @{$rref} );
+        }
+        print "$href->{descr}:\n";
+        print "=" x length("$href->{descr}:"), "\n";
+        print $table->title();
+        print $table->rule( '-', '+' );
+        print $table->body();
+        print "\n";
+    }
+
+    return;
+}
+
+#---
+
+sub diffreport {
+    my ( $start, $stop ) = @_;
+
+    my ( undef, $startepoch ) = getrun($start)
+      or die "Run $start do not exist";
+    my ( undef, $stopepoch ) = getrun($stop)
+      or die "Run $stop do not exist";
+
+    print "Comparing the results from the audit runs at:\n";
+    printf "  %s and %s\n\n",
+      strftime( "%F %H:%M", localtime($startepoch) ),
+      strftime( "%F %H:%M", localtime($stopepoch) );
+
+    foreach my $href (@tables) {
+        # i must say i'm pleased with this line :-)
+        my @colspec =
+          ( \'| ', map { ( $_, \' | ' ) } split( /,/, $href->{columns} ) );
+        # add a trailing "Change" colums
+        push( @colspec, "Comment", \' |' );
+        my $table = Text::Table->new(@colspec);
+
+        my $stmt = sprintf "SELECT %s FROM %s WHERE run = ? ORDER BY %s",
+          lc( $href->{columns} ), $href->{table}, $href->{order};
+
+        # get data from the runs
+        my $old = $db->select_aref( $stmt, $start )
+          or die "Couldn't get data from the run $start\n";
+        my $new = $db->select_aref( $stmt, $stop )
+          or die "Couldn't get data from the run $stop\n";
+
+        # create a stringifyed representation of each row in arrays
+        my $shortkeycolumns = $href->{order} =~ tr/,//;
+        foreach my $aref ( @{$old} ) {
+            my $fullkey = join( ";", map { $_ || "" } @{$aref} );
+            my $shortkey =
+              join( ";", map { $_ || "" } @{$aref}[ 0 .. $shortkeycolumns ] );
+            push( @{$aref}, $shortkey, $fullkey );
+        }
+
+        foreach my $aref ( @{$new} ) {
+            my $fullkey = join( ";", map { $_ || "" } @{$aref} );
+            my $shortkey =
+              join( ";", map { $_ || "" } @{$aref}[ 0 .. $shortkeycolumns ] );
+            push( @{$aref}, $shortkey, $fullkey );
+        }
+
+    # run a diff of the two AoA's using the fullkey (last element in each array)
+    # as the key
+        my $diff = Algorithm::Diff::diff( $old, $new, sub { $_[0][-1] } );
+
+        # flatten the diffs into a list of changes. we are not interested
+        # in how to transform old -> new, only the changes.
+        my %HoA;
+        foreach my $hunk ( @{$diff} ) {
+            foreach my $element ( @{$hunk} ) {
+                my $op   = @{$element}[0];
+                my $item = @{$element}[2];
+                my ( $key, undef ) = splice( @{$item}, -2 );
+                push( @{ $HoA{$key} }, [ $op, $item ] );
+            }
+        }
+
+        foreach my $k ( sort keys %HoA ) {
+            # if there is only one element, add it to table
+            if ( scalar @{ $HoA{$k} } == 1 ) {
+                my ( $op, $element ) = splice @{ ${ $HoA{$k} }[0] }, -2;
+                if ( $op eq '+' ) {
+                    my @a = map { formatitem( $_ || "" ) } @{$element};
+                    $table->add( @a, 'Added' );
+                }
+                else {
+                    my @a = map { formatitem( $_ ? "[$_]" : "" ) } @{$element};
+                    $table->add( @a, 'Removed' );
+                }
+            }
+            else {
+                my ( $oldop, $oldel ) = splice @{ ${ $HoA{$k} }[0] }, -2;
+                my ( $newop, $newel ) = splice @{ ${ $HoA{$k} }[1] }, -2;
+
+                # op1/element1 must be the 'old' pair (ie. not added/+'ed)
+                if ( $oldop eq '+' ) {
+                    my $tmp;
+                    $tmp   = $oldop;
+                    $oldop = $newop;
+                    $newop = $tmp;
+                    $tmp   = $oldel;
+                    $oldel = $newel;
+                    $newel = $tmp;
+                }
+
+                my @a;
+                # loop over the new elements and store the diff with old
+                foreach my $i ( 0 .. scalar @{$newel} ) {
+                    my $e1 = $$oldel[$i] || "";
+                    my $e2 = $$newel[$i] || "";
+
+                    # if no change, just store the element
+                    if ( $e1 eq $e2 ) {
+                        push( @a, formatitem($e2) );
+                    }
+                    # something changed
+                    else {
+                        push( @a, formattuple( $e1, $e2 ) );
+                    }
+                }
+                $table->add(@a);
+            }
+        }
+
+        print "$href->{descr}\n";
+        print "=" x length( $href->{descr} ) . "\n";
+
+        if ( $table->body_height > 0 ) {
+            print $table->title;
+            print $table->rule( '-', '+' );
+            print $table->body;
+        }
+        else {
+            print "No changes\n";
+        }
+        print "\n";
+    }
+    return;
+}
+
+#---
+
+sub purgeruns {
+    my ( $start, $stop ) = @_;
+
+    # if any of the ranges are undef, use same value as other end
+    # (one run is selected)
+    $stop  ||= $start;
+    $start ||= $stop;
+    return
+      unless prompt( "Purging runs from $start to $stop? [y/n] ", '-1y' );
+
+    my $rows =
+      $db->dostmt( "DELETE FROM runs WHERE run BETWEEN ? AND ?", $start,
+        $stop );
+    printf "Deleted %d runs from database\n", $rows;
+
+    return;
+}
+
+#---
+
+sub listruns {
+    my ($count) = @_;
+
+    my @runs = getrun( -1, $count )
+      or die "List of runs failed";
+
+    printf "%3s | %s\n", "run", "datetime";
+    while ( my ( $r, $e ) = splice( @runs, 0, 2 ) ) {
+        printf "%3d | %s\n", $r, strftime( "%F %H:%M", localtime($e) );
+    }
+    return;
+}
+
+#---
+
+sub isisreport {
+    my ($run) = @_;
+
+    my ( undef, $epoch ) = getrun($run)
+      or die "Run $run do not exist. Use --list to view available runs.\n";
+
+    printf "ISIS topology audit of the run at: %s\n\n",
+      strftime( "%F %H:%M", localtime($epoch) );
+
+    my $v4stmt = qq{ 
+      SELECT hostname, host, interface, metric 
+      FROM isis_topology 
+      WHERE afi = 'ipv4'
+      AND run = ? 
+  	};
+
+    my $v4 = eval { $db->select_aref( $v4stmt, $run ) };
+    die "SQL statement failed: $@\n" if $@;
+    die "No data found\n" unless $v4;
+
+    my $v6stmt = qq{
+      SELECT metric
+      FROM isis_topology
+      WHERE afi = 'ipv6'
+      AND hostname = ?
+      AND host = ?
+      AND interface = ? 
+      AND run = ?
+  	};
+
+    my @colspec = ( 
+		\'| ', 
+		map { ( $_, \' | ' ) } qw{ Hostname Host Interface IPv4 },
+    	"IPv6", 
+		\' |'
+	);
+    my $table = Text::Table->new(@colspec);
+
+    foreach my $row ( @{$v4} ) {
+        my ( $hostname, $host, $interface, $v4metric ) = @{$row};
+        my ($v6metric) = eval {
+            $db->select_row( $v6stmt, $hostname, $host, $interface, $run );
+        };
+        $v6metric ||= "n/a";
+
+        if ( $v4metric ne $v6metric ) {
+            $table->add( $hostname, $host, $interface, $v4metric, $v6metric );
+        }
+    }
+
+    if ( $table->body_height > 0 ) {
+        print $table->title;
+        print $table->rule( '-', '+' );
+        print $table->body;
+    }
+    else {
+        print "Gratulations! No inconsistencies in the topologies\n";
+    }
+    print "\n";
+
+    return;
+}
+
+#---
+
+sub getrun {
+    my ( $run, $count ) = @_;
+    # run ==  0 => get id of last run
+    # run == -1 => get id of first run
+    # else => check if run exist
+
+    # count = 1 if undef
+    $count ||= 1;
+
+    my ( $stmt, $arg );
+
+    given ($run) {
+        when (/^0$/) {
+            $stmt = "SELECT run,epoch FROM runs ORDER BY run DESC LIMIT ?";
+            $arg  = $count;
+        }
+
+        when (/^-1$/) {
+            $stmt = "SELECT run,epoch FROM runs ORDER BY run ASC LIMIT ?";
+            $arg  = $count;
+        }
+
+        default {
+            $stmt = "SELECT run,epoch from runs WHERE run = ?";
+            $arg  = $run;
+        }
+    }
+
+    my $aref = eval { $db->select_aref( $stmt, $arg ) };
+    die $@ if $@;
+
+    my @result;
+    if ($aref) {
+        foreach my $rref ( @{$aref} ) {
+            push( @result, @{$rref} );
+        }
+    }
+
+    return wantarray ? @result : $result[0];
+}
+
+#---
+
+sub makekey {
+    my ( $item, $order ) = @_;
+    my $cols = $order =~ tr/,//;
+    return join( ";", map { $_ || "" } @{$item}[ 0 .. $cols ] );
+}
+
+#---
+
+sub numerical {
+	my @vals = @_;
+
+    my $ok = 1;
+    foreach (@vals) {
+        return 0 if !defined $_;    # an undef is never numerical
+        $ok &&= $_ =~ /^ \s* -* \d+ \s* $/xms;
+    }
+    return $ok;
+}
+
+#---
+
+sub formattuple {
+    my ( $old, $new ) = @_;
+
+    # if any of old or new is numerical, calculate the difference
+    if ( numerical($old) || numerical($new) ) {
+        # make sure both is numerical
+        $old = 0 if !numerical($old);
+        $new = 0 if !numerical($new);
+        my $diff  = $new - $old;
+        my $color = "reset";
+        $color = "green" if $diff > 0;
+        $color = "red"   if $diff < 0;
+        my $str = sprintf "[% +d]", $diff;
+        return sprintf "%6d %s", $new, colored( $str, $color );
+    }
+
+    # if both old and new are empty, return empty string
+    elsif ( !$old && !$new ) {
+        return "";
+    }
+
+    # print both strings
+    else {
+        my ( $oldcolor, $newcolor );
+        $oldcolor = $newcolor = "reset";
+        if ( $old =~ /down/i && $new =~ /up/i ) {
+            $oldcolor = "red";
+            $newcolor = "green";
+        }
+        if ( $old =~ /up/i && $new =~ /down/i ) {
+            $oldcolor = "green";
+            $newcolor = "red";
+        }
+        return sprintf "%s [%s]", colored( $new, $newcolor ),
+          colored( $old, $oldcolor );
+    }
+}
+
+#---
+
+sub formatitem {
+    my ($item) = @_;
+
+    # any undef? make them defined
+    if ( !defined $item ) {
+        $item = numerical($item) ? 0 : "";
+    }
+
+    # ok, time to generate string
+    if ( numerical($item) ) {
+        return sprintf "%6d", $item;
+    }
+    else {
+        return sprintf "%6s", $item;
+    }
+}
+
+#---
+
+sub formatlist {
+	my @items = @_;
+    return map { formatitem($_) } @items;
+}
+
+__DATA__
+
+=pod
+
+=head1 NAME
+
+netreport -- Prints a report of the data captured by L<netaudit(1)>
+
+=head1 SYNOPSIS
+
+netreport [options] [mode]
+
+ Options
+  --database=filename       Database is stored in filename
+  --help                    Print a brief help message
+  --man                     Full documentation
+
+ Mode
+  --compare=LIST            Show differential data between two runs
+  --full=NUM                Show all collected data from one run
+  --isis=NUM                Compare ISIS IPv4 and IPv6 topologies
+  --list=NUM                List the NUM last runs
+  --purge=LIST              Remove runs from database
+
+=head1 DESCRIPTION
+
+Print a report of the collected data from one or more L<netaudit(1)> runs. 
+Only one mode can be chosen at a time.
+
+=over 8
+
+=item B<-c> LIST | B<--compare>=LIST
+
+Select which runs the report should be be based on
+
+=item B<-d> F<filename> | B<--database>=F<filename>
+
+The database file. Default is F<./netaudit.db>
+
+=item B<-h> | B<-?> | B<--help>
+
+Prints a brief help message and exits
+
+=item B<-f> [NUM] | B<--full>[=NUM]
+
+Show a full report, i.e. all collected data, from a single run.
+
+=item B<-i> [NUM] | B<--isis>[=NUM]
+
+Compare the ISIS topologies for IPv4 and IPv6, and report any
+differences in outgoing interfaces and/or metrics.
+
+=item B<-l> [NUM] | B<--list>[=NUM]
+
+Lists the NUM last runs stored in the database. Without a NUM all runs
+are printed.
+
+=item B<-m> | B<--man>
+
+Prints the manual page and exits
+
+=item B<-p> LIST | B<--purge>=LIST
+
+Remove the runs from the database matching LIST
+
+=back
+
+
+Each LIST is made up of a range. A LIST is one of:
+
+   N-M    Select the runs from N'th to M'th (included)
+
+    -N    Select from the last run up to N'th before last run
+
+    -1    Select the last run and second to last run
+
+The LIST which is hardest to grasp is I<-N>. The I<N> is to be interpret as 
+the number of runs before the last run. For example: -1 is the run before the
+last run, or in other words the second to last run. 
+
+When purging runs the most useful LIST is I<N-M>. If you would like to remove 
+the oldest data you can use 0 for I<N>, i.e the option will be I<--purge=0-M>
+
+
+Each NUM is a single number, and may consist of either:
+
+     N    Select the N'th run
+
+     0    Select the last run
+
+    -1    Select second to last run
+
+=head1 AUTHOR
+
+Per Carlson L<< <pelle@hemmop.com> >>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2012 Per Carlson.
+
+This application is free software; you can redistribute it and/or modify it
+under the same terms as Perl 5.14 itself.
+
+=head1 SEE ALSO
+
+L<netaudit(1)>
+
+=cut
+
+

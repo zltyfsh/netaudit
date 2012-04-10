@@ -1,0 +1,18 @@
+bin/netaudit
+bin/netreport
+Build.PL
+Changelog
+lib/Netaudit/Audit.pm
+lib/Netaudit/Constants.pm
+lib/Netaudit/Db.pm
+lib/Netaudit/Plugin/IOS.pm
+lib/Netaudit/Plugin/JunOS.pm
+lib/Netaudit/Plugin/XR.pm
+lib/Netaudit/SNMP.pm
+LICENSE
+MANIFEST			This list of files
+MANIFEST.SKIP
+README
+share/schema.sql
+TODO
+UPGRADE

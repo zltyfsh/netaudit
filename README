@@ -1,0 +1,33 @@
+This software is copyright (c) 2012 by Per Carlson <pelle@hemmop.com>.
+
+netaudit is a tool for doing audits of a network of MPLS-routers. The
+audit is done by running a series of "show commands" and walks of
+SNMP-tables to gather information of the current status of the devices.
+The collected information from two runs can be compared and the
+differences output.
+
+The main use of the tool is to take a snapshot of the status of a
+network before, for example a software upgrade, and to run a diff
+afterwards. If there is a lot of changes in the network if could be a
+indication of something have gone bad (in the upgrade).
+
+The data is stored in a SQLite3 database and can be viewed either with 
+direct SQL queries, or (recommended) the tool "netreport" included in 
+the distribution.
+
+LICENSE INFORMATION
+===================
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
+Terms of the Perl programming language system itself
+
+a) the GNU General Public License as published by the Free
+   Software Foundation; either version 1,  or (at your option) any
+   later version,  or
+
+b) the "Artistic License"
+      
+For more details, see the full text of the licenses in the directory 
+LICENSES.
+
