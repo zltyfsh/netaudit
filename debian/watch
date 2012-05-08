@@ -1,2 +1,2 @@
 version=3
-http://githubredir.debian.net/github/hemmop/netaudit/(.+).tar.gz
+https://github.com/hemmop/netaudit/tags .*/tarball/release/v(.*)

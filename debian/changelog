@@ -1,3 +1,11 @@
+netaudit (1.01-1) unstable; urgency=low
+
+  * New upstream release 
+  * Fixed watch file
+  * d/gbp.conf: New upstream tag policy
+
+ -- Per Carlson <pelle@hemmop.com>  Tue, 08 May 2012 11:06:10 +0200
+
 netaudit (1.00-1) unstable; urgency=low
 
   * Initial release. 
