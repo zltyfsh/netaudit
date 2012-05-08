@@ -1,3 +1,7 @@
+1.01 -- 20120508
+	* bin/netaudit: Added config file option password
+	* bin/netaudit: Added description of what audits is done to man page
+
 1.00 -- 20120405
 	* l/N/Db.pm: Schema init depends on SQLite version
 	* *: Reformat code with perltidy

@@ -15,7 +15,7 @@ use Readonly;
 use base qw{ Exporter };
 our @EXPORT = qw{ $VERSION $AUDIT_OK $AUDIT_NODATA $AUDIT_FAIL $SCHEMA_VER };
 
-our $VERSION = 1.00;
+our $VERSION = 1.01;
 
 # Success/failure codes for all audit subs
 Readonly my $AUDIT_FAIL   => 0;
