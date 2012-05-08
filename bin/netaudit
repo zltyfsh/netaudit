@@ -23,14 +23,15 @@ use IO::Prompt;
 use Pod::Usage;
 use NetAddr::IP;
 use File::Spec::Functions;
+use File::stat;
 
 use Netaudit::Audit;
 use Netaudit::Db;
 
 # config hash
 my %config;
-GetOptions( \%config, 'help|?!', 'man!', 'database|d=s', 'community=s',
-    'configfile|c=s', 'username|u=s' )
+GetOptions(\%config, 'help|?!', 'man!', 'database|d=s', 'community=s',
+    'configfile|c=s', 'username|u=s')
   or pod2usage(2);
 pod2usage(1) if $config{help};
 pod2usage( -exitstatus => 0, -verbose => 2 ) if $config{man};
@@ -39,7 +40,7 @@ pod2usage( -exitstatus => 0, -verbose => 2 ) if $config{man};
 $config{configfile} ||= "./netaudit.conf";
 
 if ( -r $config{configfile} ) {
-    my $cfg = Config::Simple->new( $config{configfile} )
+    my $cfg = Config::Simple->new($config{configfile})
       or die sprintf "Reading config file %s failed: %s\n",
       $config{configfile}, Config::Simple->error();
 
@@ -51,6 +52,15 @@ if ( -r $config{configfile} ) {
     # this is an undocumented option to make development easier, i.e no need
     # to install the dist to do test runs
     $config{schema} = $cfg->param('schema');
+
+    # if password is set in config file it *must* have file mode x00, ie
+    # only be readable by the user
+    if ($cfg->param('password')) {
+        my $st = stat($config{configfile});
+        die "Password set in config file, but file is group/world readable\n"
+            if $st->mode & 044;
+        $config{password} = $cfg->param('password');
+    }
 }
 
 # set defaults for everything not already set
@@ -59,11 +69,13 @@ $config{database}  ||= "./netaudit.db";
 $config{community} ||= "public";
 $config{schema} ||= catfile( $FindBin::Bin, '../share/netaudit', 'schema.sql' );
 
-# get password from terminal
-$config{password} =
-  prompt "Enter the password for user \"$config{username}\": ",
-  -echo => '*',
-  -tty;
+unless ($config{password}) {
+    # get password from terminal
+    $config{password} =
+    prompt "Enter the password for user \"$config{username}\": ",
+        -echo => '*',
+        -tty;
+}
 
 # a list of the hosts to loop over
 my @hosts;
@@ -204,6 +216,24 @@ The configuration options that cane be used are:
 
 =over
 
+=item B<community> = I<community>
+
+The SNMPv2c community to use when polling the device MIBs. 
+Default is C<public>.
+
+=item B<database> = F<database>
+
+The database file to use when storing the data/results captured in
+the last run.
+Default is C<./netaudit.db>.
+
+=item B<password> = I<secret>
+
+The password to use when logging in on a device.
+If this parameter is set the config file B<CAN NOT> be readable
+by group or world, only the user her/him self.
+The application won't run if this isn't fulfilled.
+
 =item B<range> = I<< <IP range> [, <IP range>] >>
 
 Expresses an IP-range to be scanned for devices.
@@ -222,18 +252,46 @@ a hostname in the reverse zone.
 The username to use when logging in on a device.
 Default is C<netaudit>.
 
-=item B<community> = I<community>
+=back
 
-The SNMPv2c community to use when polling the device MIBs. 
-Default is C<public>.
+=head1 WHAT IS AUDITED
 
-=item B<database> = F<database>
+The audit commands and SNMP walks done are (in a vendor neutral language):
 
-The database file to use when storing the data/results captured in
-the last run.
-Default is C<./netaudit.db>.
+=over
+
+=item
+
+The number of entries in the various routing protocol RIBs
+
+=item
+
+The IS-IS topology
+
+=item
+
+The IS-IS neighbours
+
+=item 
+
+The BGP neighbours and the prefixes received from them (both global and in VPN)
+
+=item
+
+The state, speed and MTU of all important interfaces (main interfaces, MPLS interfaces, tunnels, 
+MPLS tunnelss, SDH/SONET interfaces, LAG interfaces)
+
+=item
+
+The state of all PEW3 connections
+
+=item
+
+The number of interfaces configured and active on VPNs
 
 =back
+
+All the above elements are audited for both IPv4 and IPv6.
 
 =head1 AUTHOR
 
