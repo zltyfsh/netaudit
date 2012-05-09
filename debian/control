@@ -9,7 +9,7 @@ Build-Depends-Indep: libalgorithm-diff-perl,
  libdbd-sqlite3-perl (>= 1.26.05), 
  libdbi-perl,
  libio-prompt-perl,
- libmoose-perl,
+ libmouse-perl,
  libnet-snmp-perl, 
  libnet-telnet-perl,
  libnetaddr-ip-perl,
@@ -17,7 +17,8 @@ Build-Depends-Indep: libalgorithm-diff-perl,
  libregexp-ipv6-perl,
  libtext-table-perl, 
  libreadonly-perl, 
- libsoftware-license-perl
+ libtext-aligner-perl, 
+ libterm-ansicolor-perl
 Standards-Version: 3.9.3
 Vcs-Browser: https://github.com/hemmop/netaudit
 Vcs-Git: git://github.com/hemmop/netaudit.git
@@ -30,15 +31,18 @@ Depends: ${misc:Depends}, ${perl:Depends},
  libdbd-sqlite3-perl (>= 1.26.05), 
  libdbi-perl,
  libio-prompt-perl,
- libmoose-perl,
+ libmouse-perl,
  libnet-snmp-perl, 
  libnet-telnet-perl,
  libnetaddr-ip-perl,
  libregexp-common-perl,
  libregexp-ipv6-perl,
  libtext-table-perl, 
- libreadonly-perl
-Recommends: libterm-ansicolor-perl (>= 2.01) | perl (>= 5.11.0)
+ libreadonly-perl, 
+ libtext-aligner-perl, 
+ libterm-ansicolor-perl
+Recommends: libterm-ansicolor-perl (>= 2.01) | perl (>= 5.11.0), 
+ libtext-aligner-perl (>= 0.07)
 Description: Scripts for doing network audits of routers
  netaudit runs a series of commands and SNMP walks on a device (or more)
  to get a view of the environment it operates within.
