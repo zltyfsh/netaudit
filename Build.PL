@@ -9,11 +9,9 @@ my $build = Module::Build->new
    dist_author => 'Per Carlson <pelle@hemmop.com>',
    module_name => 'netaudit',
    license => 'perl',
-   create_license => 1, 
    script_files => ['bin/netaudit', 'bin/netreport'],
    configure_requires => { 
-	   'Module::Build' => '0.31', # first support for create_license
-	   'Software::License' => 0, 
+	   'Module::Build' => 0, 
    },
    requires => {
 		'perl' => '5.010',
