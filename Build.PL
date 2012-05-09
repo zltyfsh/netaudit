@@ -20,7 +20,7 @@ my $build = Module::Build->new
 		'Net::Telnet' => 0,
 		'NetAddr::IP' => 0,
 		'Net::SNMP' => 0,
-		'Moose' => 0,
+		'Mouse' => 0,
 		'IO::Prompt' => 0,
 		'Regexp::Common' => 0,
 		'Regexp::IPv6' => 0,
@@ -30,9 +30,13 @@ my $build = Module::Build->new
 		'Algorithm::Diff' => 0,
 		'Config::Simple' => 0,
 		'Readonly' => 0, 
+		'Text::Aligner' => 0,
+		'Term::ANSIColor' => 0,
    },
    recommends => {
-		  'Term::ANSIColor' => '2.01',
+		# having those enables colored output
+		'Text::Aligner' => '0.06',  
+		'Term::ANSIColor' => '2.01',
    },
    share_files => { 'share/schema.sql' => 'share/schema.sql' },
    doc_files   => { map( ($_ => catfile('doc', $_) ), qw[ TODO INSTALL UPGRADE ]) },
