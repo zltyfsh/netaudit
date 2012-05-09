@@ -22,29 +22,35 @@ use Text::Table;
 use IO::Prompt;
 use Algorithm::Diff;
 use Readonly;
-
+use Text::Aligner;
 use Term::ANSIColor;
-*colored = \&Term::ANSIColor::colored;
-# early versions of Term::ANSIColor don't have colorstrip, in those
-# cases use a dummy colored sub (else the tables won't be properly aligned)
-*colorstrip = \&Term::ANSIColor::colorstrip;
-defined &colorstrip or *colored = sub { shift };
 
 Readonly my $DATABASE => './netaudit.db';
 
 # options
 my %opts;
+$opts{colors} = 1;
 
 GetOptions(
-    \%opts, 'database|d=s', 'help|?', 'man',
+    \%opts, 
+    'database|d=s', 
+    'help|?', 
+    'man',
+    'colors|C!',    # use colors in output
     'list:i',       # list runs
     'purge=s',      # purge runs
     'full:s',       # full reporting of one run
-    'compare:s',    # differential reporting from two runs
+    'compare|c:s',  # differential reporting from two runs
     'isis:s',       # check if isis v4 and v6 have same topology
 ) or pod2usage(2);
 pod2usage(1) if $opts{help};
 pod2usage( -exitval => 2, -verbose => 2 ) if $opts{man};
+
+# we can't colorize if too old modules
+if ($Term::ANSIColor::VERSION lt '2.01' || $Text::Aligner::VERSION lt '0.06') {
+   # then we can't use colors
+   $opts{colors} = 0;
+}
 
 # AoH of tables and their options
 my @tables = (
@@ -131,6 +137,11 @@ elsif ( exists $opts{compare} ) {
 
     # use LIST if given
     ( $from, $to ) = split( /-/, $opts{compare} ) if $opts{compare};
+
+    # if $to is undef then we have a "N" or "N-" option
+    if ( !defined $to ) {
+        $to = $lastrun;
+    }
 
     # if $from = '' then we have a "-N" option
     if ( $from eq '' ) {
@@ -231,8 +242,8 @@ sub diffreport {
             push( @{$aref}, $shortkey, $fullkey );
         }
 
-    # run a diff of the two AoA's using the fullkey (last element in each array)
-    # as the key
+    	# run a diff of the two AoA's using the fullkey (last element in each array)
+    	# as the key
         my $diff = Algorithm::Diff::diff( $old, $new, sub { $_[0][-1] } );
 
         # flatten the diffs into a list of changes. we are not interested
@@ -455,14 +466,6 @@ sub getrun {
 
 #---
 
-sub makekey {
-    my ( $item, $order ) = @_;
-    my $cols = $order =~ tr/,//;
-    return join( ";", map { $_ || "" } @{$item}[ 0 .. $cols ] );
-}
-
-#---
-
 sub numerical {
 	my @vals = @_;
 
@@ -489,7 +492,7 @@ sub formattuple {
         $color = "green" if $diff > 0;
         $color = "red"   if $diff < 0;
         my $str = sprintf "[% +d]", $diff;
-        return sprintf "%6d %s", $new, colored( $str, $color );
+        return sprintf "%6d %s", $new, colorize( $str, $color );
     }
 
     # if both old and new are empty, return empty string
@@ -509,8 +512,8 @@ sub formattuple {
             $oldcolor = "green";
             $newcolor = "red";
         }
-        return sprintf "%s [%s]", colored( $new, $newcolor ),
-          colored( $old, $oldcolor );
+        return sprintf "%s [%s]", colorize( $new, $newcolor ),
+          colorize( $old, $oldcolor );
     }
 }
 
@@ -536,8 +539,16 @@ sub formatitem {
 #---
 
 sub formatlist {
-	my @items = @_;
+    my @items = @_;
     return map { formatitem($_) } @items;
+}
+
+#---
+
+sub colorize {
+    my ( $str, $color ) = @_;
+
+    return $opts{colors} ? colored( $str, $color ) : $str;
 }
 
 __DATA__
@@ -550,26 +561,43 @@ netreport -- Prints a report of the data captured by L<netaudit(1)>
 
 =head1 SYNOPSIS
 
-netreport [options] [mode]
+netreport [options] [--help | --man]
 
- Options
-  --database=filename       Database is stored in filename
-  --help                    Print a brief help message
-  --man                     Full documentation
-
- Mode
-  --compare=LIST            Show differential data between two runs
-  --full=NUM                Show all collected data from one run
-  --isis=NUM                Compare ISIS IPv4 and IPv6 topologies
-  --list=NUM                List the NUM last runs
-  --purge=LIST              Remove runs from database
+ --help   Show brief help text
+ --man    Show full man page
 
 =head1 DESCRIPTION
 
 Print a report of the collected data from one or more L<netaudit(1)> runs. 
 Only one mode can be chosen at a time.
 
-=over 8
+=head1 OPTIONS
+
+=head2 General parameters
+
+=over
+
+=item B<-d> | B<--database>
+
+The database to report from.
+Is created by netaudit.
+Default is F<./netaudit.db>
+
+=item B<-C> | B<--colors>
+
+Enable colorized output.
+To disable colors use B<--no-colors> (or the shorter but
+not so informative B<-C 0>).
+This is used when running in compare/diff mode.
+If the application is run from (for example) cron, it's strongly
+recommended to NOT use colors.
+Default is ON.
+
+=back
+
+=head2 Modes of operation
+
+=over
 
 =item B<-c> LIST | B<--compare>=LIST
 
@@ -578,10 +606,6 @@ Select which runs the report should be be based on
 =item B<-d> F<filename> | B<--database>=F<filename>
 
 The database file. Default is F<./netaudit.db>
-
-=item B<-h> | B<-?> | B<--help>
-
-Prints a brief help message and exits
 
 =item B<-f> [NUM] | B<--full>[=NUM]
 
@@ -597,18 +621,17 @@ differences in outgoing interfaces and/or metrics.
 Lists the NUM last runs stored in the database. Without a NUM all runs
 are printed.
 
-=item B<-m> | B<--man>
-
-Prints the manual page and exits
-
 =item B<-p> LIST | B<--purge>=LIST
 
 Remove the runs from the database matching LIST
 
 =back
 
+=head1 LISTS
 
 Each LIST is made up of a range. A LIST is one of:
+
+     N    Select the runs from N'th to lastrun
 
    N-M    Select the runs from N'th to M'th (included)
 

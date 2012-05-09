@@ -8,7 +8,7 @@
 
 package Netaudit::Db;
 
-use Moose;
+use Mouse;
 use Carp;
 use DBI;
 use Netaudit::Constants;

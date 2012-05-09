@@ -1,3 +1,15 @@
+1.03 -- 20120509
+	* l/N/Db.pm, l/N/SNMP.pm, Build.PL: Replaced Moose with Mouse
+	* Build.PL: Added Text::Aligner to requirements
+	* bin/netreport: 
+	  - Check if Text::Aligner and Term::ANSIColor do have
+	    sufficient color filtering, disable coloring if not.
+	  - Added option --[no-]colors to enable turning colors off
+	  - Rearranged info in man page
+	  - Added N option in mode --compare (we allowed N before, but
+	    that was an bug)
+	  - Removed auto-generated license
+
 1.02 -- 20120509
 	* Build.PL: Remove auto-creation of license
 	* l/N/Plugins/IOS.pm: Fixed prompt, can also end on >

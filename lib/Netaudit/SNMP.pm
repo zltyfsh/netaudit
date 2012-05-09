@@ -8,7 +8,7 @@
 
 package Netaudit::SNMP;
 
-use Moose;
+use Mouse;
 use Net::SNMP;
 use Carp;
 
