@@ -1,3 +1,8 @@
+1.02 -- 20120509
+	* Build.PL: Remove auto-creation of license
+	* l/N/Plugins/IOS.pm: Fixed prompt, can also end on >
+	* bin/netaudit: Re-instated development as config file parameter
+
 1.01 -- 20120508
 	* bin/netaudit: Added config file option password
 	* bin/netaudit: Added description of what audits is done to man page
