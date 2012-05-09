@@ -2,6 +2,7 @@ bin/netaudit
 bin/netreport
 Build.PL
 Changelog
+INSTALL
 lib/Netaudit/Audit.pm
 lib/Netaudit/Constants.pm
 lib/Netaudit/Db.pm

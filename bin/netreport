@@ -138,6 +138,11 @@ elsif ( exists $opts{compare} ) {
     # use LIST if given
     ( $from, $to ) = split( /-/, $opts{compare} ) if $opts{compare};
 
+    # if $to is undef then we have a "N" or "N-" option
+    if ( !defined $to ) {
+        $to = $lastrun;
+    }
+
     # if $from = '' then we have a "-N" option
     if ( $from eq '' ) {
         $from = $lastrun - $to;
@@ -625,6 +630,8 @@ Remove the runs from the database matching LIST
 =head1 LISTS
 
 Each LIST is made up of a range. A LIST is one of:
+
+     N    Select the runs from N'th to lastrun
 
    N-M    Select the runs from N'th to M'th (included)
 

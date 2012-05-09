@@ -6,6 +6,9 @@
 	    sufficient color filtering, disable coloring if not.
 	  - Added option --[no-]colors to enable turning colors off
 	  - Rearranged info in man page
+	  - Added N option in mode --compare (we allowed N before, but
+	    that was an bug)
+	  - Removed auto-generated license
 
 1.02 -- 20120509
 	* Build.PL: Remove auto-creation of license
