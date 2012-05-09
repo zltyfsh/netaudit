@@ -9,7 +9,8 @@ lib/Netaudit/Plugin/IOS.pm
 lib/Netaudit/Plugin/JunOS.pm
 lib/Netaudit/Plugin/XR.pm
 lib/Netaudit/SNMP.pm
-LICENSE
+LICENSES/gpl
+LICENSES/artistic
 MANIFEST			This list of files
 MANIFEST.SKIP
 README

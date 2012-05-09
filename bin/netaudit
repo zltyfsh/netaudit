@@ -49,9 +49,10 @@ if ( -r $config{configfile} ) {
     $config{username}  = $config{username}  || $cfg->param('username');
     $config{community} = $config{community} || $cfg->param('community');
     $config{range}     = [ $cfg->param('range') ];
-    # this is an undocumented option to make development easier, i.e no need
-    # to install the dist to do test runs
+
+    # this are undocumented options to make development easier
     $config{schema} = $cfg->param('schema');
+    $config{development} = $cfg->param('development');
 
     # if password is set in config file it *must* have file mode x00, ie
     # only be readable by the user

@@ -20,7 +20,7 @@ use Netaudit::Constants;
 ### RegExps ###
 
 my $HOSTNAME  = qr{ [\p{Alnum}\.-]+ }xms;
-my $PROMPT    = '/[\p{Alnum}\.-]+#\s*/';
+my $PROMPT    = '/[\p{Alnum}\.-]+[#>]\s*/';
 my $TIMESTAMP = qr{ ^(Load for|Time source is) }xms;
 my @HANDLES   = (
     qr{ Cisco \s IOS \s Software }xms,
