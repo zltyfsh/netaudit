@@ -15,7 +15,8 @@ use FindBin;
 use lib "$FindBin::Bin/../lib/";
 use lib "$FindBin::Bin/../lib/perl5";
 use Netaudit::Db;
-use Getopt::Long;
+use Netaudit::Constants;
+use Getopt::Long '2.32'; # enables auto_version
 use Pod::Usage;
 use POSIX qw{ strftime };
 use Text::Table;
@@ -25,11 +26,15 @@ use Readonly;
 use Text::Aligner;
 use Term::ANSIColor;
 
+our $VERSION = $Netaudit::Constants::VERSION;
+
 Readonly my $DATABASE => './netaudit.db';
 
 # options
 my %opts;
 $opts{colors} = 1;
+
+Getopt::Long::Configure("auto_version");
 
 GetOptions(
     \%opts, 
@@ -39,9 +44,9 @@ GetOptions(
     'colors|C!',    # use colors in output
     'list:i',       # list runs
     'purge=s',      # purge runs
-    'full:s',       # full reporting of one run
-    'compare|c:s',  # differential reporting from two runs
-    'isis:s',       # check if isis v4 and v6 have same topology
+    'full:0',       # full reporting of one run
+    'compare|c:0',  # differential reporting from two runs
+    'isis:0',       # check if isis v4 and v6 have same topology
 ) or pod2usage(2);
 pod2usage(1) if $opts{help};
 pod2usage( -exitval => 2, -verbose => 2 ) if $opts{man};
@@ -110,12 +115,9 @@ my $dbfile = $opts{database} || $DATABASE;
 my $db = eval { Netaudit::Db->new( database => $dbfile ) };
 die $@ if $@;
 
-# find our reporting limits
-my $lastrun = getrun(0);
-
 # if we should list the runs, just do that and exit
 if ( exists $opts{list} ) {
-    listruns( $opts{list} || 99999 );
+    listruns( $opts{list} );
 }
 
 elsif ( exists $opts{purge} ) {
@@ -124,19 +126,20 @@ elsif ( exists $opts{purge} ) {
 
 elsif ( exists $opts{isis} ) {
     # if $isis = 0 (or undef), use run from last run
-    isisreport( $opts{isis} || $lastrun );
+    #isisreport( $opts{isis} || $lastrun );
+    isisreport( $opts{isis} );
 }
 
 elsif ( exists $opts{full} ) {
     # if $full = 0 (or undef), use run from last run
-    fullreport( $opts{full} || $lastrun );
+    #fullreport( $opts{full} || $lastrun, shift @ARGV ); 
+    fullreport( $opts{full}, shift @ARGV ); 
 }
 
 elsif ( exists $opts{compare} ) {
-    my ( $from, $to ) = ( '', '1' );    # compare last two runs as default
+    my ( $from, $to ) = split( /-/, $opts{compare} );
 
-    # use LIST if given
-    ( $from, $to ) = split( /-/, $opts{compare} ) if $opts{compare};
+    my $lastrun = getrun(0);
 
     # if $to is undef then we have a "N" or "N-" option
     if ( !defined $to ) {
@@ -148,7 +151,7 @@ elsif ( exists $opts{compare} ) {
         $from = $lastrun - $to;
         $to   = $lastrun;
     }
-    diffreport( $from, $to );
+    diffreport( $from, $to, shift @ARGV );
 }
 
 # if we end up here no operational mode is selected
@@ -161,9 +164,14 @@ exit;
 #---
 
 sub fullreport {
-    my ($run) = @_;
+    my ($run, $hostname) = @_;
+    
+    # add wildcard to hostname
+    $hostname ||= "";
+    $hostname .= "%";
 
-    my ( undef, $epoch ) = getrun($run)
+    my $epoch;
+    ( $run, $epoch ) = getrun($run)
       or die "Run $run do not exist. Use --list to view available runs.\n";
 
     printf "Full report of the audit run at: %s\n\n",
@@ -176,9 +184,11 @@ sub fullreport {
         $colspec[-1] = \' |';
         my $table = Text::Table->new(@colspec);
 
-        my $stmt = sprintf "SELECT %s FROM %s WHERE run = ? ORDER BY %s",
-          lc( $href->{columns} ), $href->{table}, $href->{order};
-        my $aref = $db->select_aref( $stmt, $run );
+        my $stmt = 
+            sprintf "SELECT %s FROM %s WHERE run = ? AND hostname LIKE ? ORDER BY %s",
+                lc( $href->{columns} ), $href->{table}, $href->{order};
+
+        my $aref = $db->select_aref( $stmt, $run, $hostname );
 
         foreach my $rref ( @{$aref} ) {
             $table->add( @{$rref} );
@@ -197,12 +207,16 @@ sub fullreport {
 #---
 
 sub diffreport {
-    my ( $start, $stop ) = @_;
+    my ( $start, $stop, $hostname ) = @_;
 
     my ( undef, $startepoch ) = getrun($start)
       or die "Run $start do not exist";
     my ( undef, $stopepoch ) = getrun($stop)
       or die "Run $stop do not exist";
+
+    # add wildcard to hostame
+    $hostname ||= "";
+    $hostname .= "%";
 
     print "Comparing the results from the audit runs at:\n";
     printf "  %s and %s\n\n",
@@ -217,13 +231,14 @@ sub diffreport {
         push( @colspec, "Comment", \' |' );
         my $table = Text::Table->new(@colspec);
 
-        my $stmt = sprintf "SELECT %s FROM %s WHERE run = ? ORDER BY %s",
-          lc( $href->{columns} ), $href->{table}, $href->{order};
+        my $stmt = 
+            sprintf "SELECT %s FROM %s WHERE run = ? AND hostname LIKE ? ORDER BY %s",
+                lc( $href->{columns} ), $href->{table}, $href->{order};
 
         # get data from the runs
-        my $old = $db->select_aref( $stmt, $start )
+        my $old = $db->select_aref( $stmt, $start, $hostname )
           or die "Couldn't get data from the run $start\n";
-        my $new = $db->select_aref( $stmt, $stop )
+        my $new = $db->select_aref( $stmt, $stop, $hostname )
           or die "Couldn't get data from the run $stop\n";
 
         # create a stringifyed representation of each row in arrays
@@ -328,8 +343,9 @@ sub purgeruns {
 
     # if any of the ranges are undef, use same value as other end
     # (one run is selected)
-    $stop  ||= $start;
-    $start ||= $stop;
+    $start = $stop  unless defined $start; 
+    $stop  = $start unless defined $stop; 
+    
     return
       unless prompt( "Purging runs from $start to $stop? [y/n] ", '-1y' );
 
@@ -346,8 +362,8 @@ sub purgeruns {
 sub listruns {
     my ($count) = @_;
 
-    my @runs = getrun( -1, $count )
-      or die "List of runs failed";
+    my @runs = getrun( 99999, $count )
+      or die "Didn't find any matching runs\n";
 
     printf "%3s | %s\n", "run", "datetime";
     while ( my ( $r, $e ) = splice( @runs, 0, 2 ) ) {
@@ -425,33 +441,33 @@ sub isisreport {
 
 sub getrun {
     my ( $run, $count ) = @_;
-    # run ==  0 => get id of last run
-    # run == -1 => get id of first run
+    # run ==     0 => get id of last runs 
+    # run ==    -1 => get id of second to last run
+    # run == 99999 => get id of $count last runs
     # else => check if run exist
 
-    # count = 1 if undef
-    $count ||= 1;
-
+    $count ||= 99999;  # safe default
     my ( $stmt, $arg );
 
     given ($run) {
-        when (/^0$/) {
-            $stmt = "SELECT run,epoch FROM runs ORDER BY run DESC LIMIT ?";
-            $arg  = $count;
+        when ($_ == 0) {
+            $stmt = "SELECT run,epoch FROM runs ORDER BY run DESC LIMIT 1";
         }
 
-        when (/^-1$/) {
-            $stmt = "SELECT run,epoch FROM runs ORDER BY run ASC LIMIT ?";
-            $arg  = $count;
+        when ($_ == -1) {
+            $stmt = "SELECT run,epoch FROM runs ORDER BY run DESC LIMIT 1 OFFSET 1";
+        }
+
+        when ($_ == 99999) {
+            $stmt = "SELECT run,epoch FROM runs ORDER BY run ASC LIMIT $count";
         }
 
         default {
-            $stmt = "SELECT run,epoch from runs WHERE run = ?";
-            $arg  = $run;
+            $stmt = "SELECT run,epoch from runs WHERE run = $run";
         }
     }
 
-    my $aref = eval { $db->select_aref( $stmt, $arg ) };
+    my $aref = eval { $db->select_aref( $stmt ) };
     die $@ if $@;
 
     my @result;
@@ -561,7 +577,7 @@ netreport -- Prints a report of the data captured by L<netaudit(1)>
 
 =head1 SYNOPSIS
 
-netreport [options] [--help | --man]
+netreport [options] [hostname] [--help | --man]
 
  --help   Show brief help text
  --man    Show full man page
@@ -579,15 +595,13 @@ Only one mode can be chosen at a time.
 
 =item B<-d> | B<--database>
 
-The database to report from.
-Is created by netaudit.
+The database, created by netaudit, to report from.
 Default is F<./netaudit.db>
 
 =item B<-C> | B<--colors>
 
 Enable colorized output.
-To disable colors use B<--no-colors> (or the shorter but
-not so informative B<-C 0>).
+To disable colors use B<--no-colors>.
 This is used when running in compare/diff mode.
 If the application is run from (for example) cron, it's strongly
 recommended to NOT use colors.
@@ -601,7 +615,12 @@ Default is ON.
 
 =item B<-c> LIST | B<--compare>=LIST
 
-Select which runs the report should be be based on
+Select which runs the report should be be based on.
+Default (if no LIST) is to show the difference between the
+two last runs.
+
+If a I<hostname> is specified the report is only run for that
+particular host.
 
 =item B<-d> F<filename> | B<--database>=F<filename>
 
@@ -610,11 +629,16 @@ The database file. Default is F<./netaudit.db>
 =item B<-f> [NUM] | B<--full>[=NUM]
 
 Show a full report, i.e. all collected data, from a single run.
+Default (when no NUM) is to print the report from the last run.
+
+If a I<hostname> is specified the report is only run for that
+particular host.
 
 =item B<-i> [NUM] | B<--isis>[=NUM]
 
 Compare the ISIS topologies for IPv4 and IPv6, and report any
 differences in outgoing interfaces and/or metrics.
+Default (when no NUM) is to print the report from the last run.
 
 =item B<-l> [NUM] | B<--list>[=NUM]
 
@@ -631,29 +655,19 @@ Remove the runs from the database matching LIST
 
 Each LIST is made up of a range. A LIST is one of:
 
-     N    Select the runs from N'th to lastrun
+     N    Select the runs from N'th to last run
 
    N-M    Select the runs from N'th to M'th (included)
 
-    -N    Select from the last run up to N'th before last run
-
-    -1    Select the last run and second to last run
-
-The LIST which is hardest to grasp is I<-N>. The I<N> is to be interpret as 
-the number of runs before the last run. For example: -1 is the run before the
-last run, or in other words the second to last run. 
-
 When purging runs the most useful LIST is I<N-M>. If you would like to remove 
-the oldest data you can use 0 for I<N>, i.e the option will be I<--purge=0-M>
-
+the oldest data you can use I<0> instead of I<N>, i.e the option will be 
+I<--purge=0-M>
 
 Each NUM is a single number, and may consist of either:
 
      N    Select the N'th run
 
      0    Select the last run
-
-    -1    Select second to last run
 
 =head1 AUTHOR
 
