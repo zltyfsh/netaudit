@@ -1,4 +1,4 @@
-1.04~rc -- unreleased
+1.04 -- 20120511
 	* bin/netaudit: Always ask for password when --username used
 	* bin/netreport: Fixed run=0 bug in isisreport (regression 
 	  from [12d33d])
