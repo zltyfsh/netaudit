@@ -279,7 +279,7 @@ sub isis_topology {
     }
 
     # and then ipv6
-    foreach my $line ( $conn->cmd("show isis * topology level-2") ) {
+    foreach my $line ( $conn->cmd("show isis ipv6 topology level-2") ) {
         chomp($line);
 
 # Example output:
@@ -336,10 +336,10 @@ sub isis_topology {
                 $db->insert(
                     'isis_topology',
                     {
-                        host        => $host,
-                          metric    => $metric,
-                          interface => $1,
-                          afi       => "ipv6"
+                        host      => $host,
+                        metric    => $metric,
+                        interface => $1,
+                        afi       => "ipv6"
                     }
                 );
             }

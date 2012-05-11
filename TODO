@@ -5,5 +5,3 @@
 * Add additional output formats beyond text, for example html
 
 * Add other device types, for example JunOSe (Juniper E/ERX-series)
-
-* Add mode for running a report just on selected devices
