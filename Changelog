@@ -1,6 +1,7 @@
 1.04~rc -- unreleased
 	* bin/netaudit: Always ask for password when --username used
-
+	* bin/netreport: Fixed run=0 bug in isisreport (regression 
+	  from [12d33d])
 
 1.03 -- 20120509
 	* l/N/Db.pm, l/N/SNMP.pm, Build.PL: Replaced Moose with Mouse

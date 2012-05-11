@@ -377,7 +377,8 @@ sub listruns {
 sub isisreport {
     my ($run) = @_;
 
-    my ( undef, $epoch ) = getrun($run)
+    my $epoch;
+    ( $run, $epoch ) = getrun($run)
       or die "Run $run do not exist. Use --list to view available runs.\n";
 
     printf "ISIS topology audit of the run at: %s\n\n",
@@ -417,7 +418,7 @@ sub isisreport {
         my ($v6metric) = eval {
             $db->select_row( $v6stmt, $hostname, $host, $interface, $run );
         };
-        $v6metric ||= "n/a";
+        $v6metric ||= "-";
 
         if ( $v4metric ne $v6metric ) {
             $table->add( $hostname, $host, $interface, $v4metric, $v6metric );
