@@ -46,7 +46,6 @@ if ( -r $config{configfile} ) {
 
     # get parameters from cli first, then config file
     $config{database}  = $config{database}  || $cfg->param('database');
-    $config{username}  = $config{username}  || $cfg->param('username');
     $config{community} = $config{community} || $cfg->param('community');
     $config{range}     = [ $cfg->param('range') ];
 
@@ -54,13 +53,22 @@ if ( -r $config{configfile} ) {
     $config{schema} = $cfg->param('schema');
     $config{development} = $cfg->param('development');
 
-    # if password is set in config file it *must* have file mode x00, ie
-    # only be readable by the user
-    if ($cfg->param('password')) {
-        my $st = stat($config{configfile});
-        die "Password set in config file, but file is group/world readable\n"
-            if $st->mode & 044;
-        $config{password} = $cfg->param('password');
+    # if username set on cli, do not use password from config file
+    if ( ! $config{username} ) {
+        $config{username} = $cfg->param('username');
+
+        # if password is set in config file it *must* have file mode x00, ie
+        # only be readable by the user
+        if ($cfg->param('password')) {
+            my $st = stat($config{configfile});
+            die "Password set in config file, but file is group/world readable\n"
+                if $st->mode & 044;
+            $config{password} = $cfg->param('password');
+        }
+    }
+    else {
+        # unset password to trigger prompt
+        $config{password} = "";
     }
 }
 
@@ -72,8 +80,7 @@ $config{schema} ||= catfile( $FindBin::Bin, '../share/netaudit', 'schema.sql' );
 
 unless ($config{password}) {
     # get password from terminal
-    $config{password} =
-    prompt "Enter the password for user \"$config{username}\": ",
+    $config{password} = prompt "Enter the password for user \"$config{username}\": ",
         -echo => '*',
         -tty;
 }

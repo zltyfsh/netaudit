@@ -1,3 +1,7 @@
+1.04~rc -- unreleased
+	* bin/netaudit: Always ask for password when --username used
+
+
 1.03 -- 20120509
 	* l/N/Db.pm, l/N/SNMP.pm, Build.PL: Replaced Moose with Mouse
 	* Build.PL: Added Text::Aligner to requirements
