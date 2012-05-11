@@ -1,3 +1,9 @@
+netaudit (1.04-1) unstable; urgency=low
+
+  * New upstream
+
+ -- Per Carlson <pelle@hemmop.com>  Fri, 11 May 2012 11:11:06 +0200
+
 netaudit (1.03-1) unstable; urgency=low
 
   * New upstream release
