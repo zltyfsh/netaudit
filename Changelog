@@ -1,3 +1,12 @@
+1.05 -- unreleased
+	* bin/netreport: 
+	  - Fixed interpretation of LIST
+	  - Added modes --runs and --hosts
+	  - When comparing two runs, only compare devices existing in
+	    both runs.
+	  - Added more comments how --compare works
+	* l/N/Db.pm: Added PrintError = 0
+
 1.04 -- 20120511
 	* bin/netaudit: Always ask for password when --username used
 	* bin/netreport: Fixed run=0 bug in isisreport (regression 

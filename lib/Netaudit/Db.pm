@@ -12,6 +12,9 @@ use Mouse;
 use Carp;
 use DBI;
 use Netaudit::Constants;
+use Readonly;
+
+Readonly my $SCHEMA_VER => 1;
 
 has 'database' => ( is => 'rw', required => 1 );
 has 'schema'   => ( is => 'rw', default  => undef );
@@ -30,14 +33,25 @@ sub BUILD {
 
     $self->_dbh($dbh);
 
-    # make DB raise exception on failures,
-    # and turn FOREIGN KEYS enforcement on (we use this to make removal of a
-    # run super simple)
+    # make DB raise exception on failures, but not print them.
     $dbh->{RaiseError} = 1;
+    $dbh->{PrintError} = 0;
+
+    # turn FOREIGN KEYS enforcement on (we use this to make removal of a
+    # run super simple)
     $dbh->do("PRAGMA foreign_keys = ON");
 
-    # have we got a schema? try to load it
-    if ( $self->schema ) {
+    # do the database have a compliant version?
+    my ($version) = eval { $dbh->selectrow_array("SELECT version FROM db") };
+
+    # if we got an answer, check version compability
+    if ( defined $version ) {
+        die "The database have a non-compliant version. See UPGRADE\n"
+            unless ( $version eq $SCHEMA_VER );
+    }
+
+    # if no answer, the database is probably empty. load schema
+    else {
         # try to init the database from the schema file
         die sprintf( "Could not open schema %s: %s", $self->schema, $! )
           unless open( my $fh, "<", $self->schema );
@@ -61,17 +75,6 @@ sub BUILD {
             } while (<$fh>);
         }
         close($fh);
-    }
-
-    # do the database have a compliant version?
-    my ($version) = $dbh->selectrow_array("SELECT version FROM db");
-    # if we got an undef, no version is stored. store our version and continue
-    if ( !defined $version ) {
-        my $sth = $dbh->prepare("INSERT INTO db (version) VALUES (?)");
-        $sth->execute($SCHEMA_VER);
-    }
-    elsif ( $version ne $SCHEMA_VER ) {
-        die "The database have a non-compliant version. See UPGRADE\n";
     }
 
     return;
@@ -163,6 +166,16 @@ sub select_row {
 
 #---
 
+sub select_column {
+    my ( $self, $stmt, @args ) = @_;
+
+    my $aref = $self->dbh->selectcol_arrayref($stmt, {}, @args);
+    croak "select failed: $self->dbh->errstr" if $self->dbh->errstr;
+    return $aref ? @{ $aref } : undef; 
+}
+
+#---
+
 sub dostmt {
     my ( $self, $stmt, @args ) = @_;
 
@@ -176,5 +189,16 @@ sub dostmt {
 }
 
 #---
+
+sub gethosts {
+    my ( $self, $run ) = @_;
+
+    return unless $self->getrun($run);   # check that run exists
+    my $stmt = "SELECT hostname FROM device WHERE run = ?";
+    my $aref = $self->select_aref($stmt, $run) 
+        or return;
+
+    return map { $$_[0] } @{ $aref };
+}
 
 1;

@@ -23,6 +23,6 @@ Readonly my $AUDIT_OK     => 1;
 Readonly my $AUDIT_NODATA => 2;
 
 # Our schema version
-Readonly my $SCHEMA_VER => 1;
+#Readonly my $SCHEMA_VER => 1;
 
 1;
