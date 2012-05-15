@@ -125,33 +125,15 @@ elsif ( exists $opts{purge} ) {
 }
 
 elsif ( exists $opts{isis} ) {
-    # if $isis = 0 (or undef), use run from last run
-    #isisreport( $opts{isis} || $lastrun );
     isisreport( $opts{isis} );
 }
 
 elsif ( exists $opts{full} ) {
-    # if $full = 0 (or undef), use run from last run
-    #fullreport( $opts{full} || $lastrun, shift @ARGV ); 
     fullreport( $opts{full}, shift @ARGV ); 
 }
 
 elsif ( exists $opts{compare} ) {
-    my ( $from, $to ) = split( /-/, $opts{compare} );
-
-    my $lastrun = getrun(0);
-
-    # if $to is undef then we have a "N" or "N-" option
-    if ( !defined $to ) {
-        $to = $lastrun;
-    }
-
-    # if $from = '' then we have a "-N" option
-    if ( $from eq '' ) {
-        $from = $lastrun - $to;
-        $to   = $lastrun;
-    }
-    diffreport( $from, $to, shift @ARGV );
+   diffreport( $opts{compare}, shift @ARGV );
 }
 
 # if we end up here no operational mode is selected
@@ -207,12 +189,25 @@ sub fullreport {
 #---
 
 sub diffreport {
-    my ( $start, $stop, $hostname ) = @_;
+    my ( $compare, $hostname ) = @_;
+    my ( $from, $from_epoch, $to, $to_epoch );
 
-    my ( undef, $startepoch ) = getrun($start)
-      or die "Run $start do not exist";
-    my ( undef, $stopepoch ) = getrun($stop)
-      or die "Run $stop do not exist";
+    if ($compare == 0) {
+        # get the to last runs
+        ( $to, $to_epoch, $from, $from_epoch ) = getrun(-1, 2);
+    }
+    else {
+        ( $from, $to ) = split( /-/, $compare );
+
+        # get from run
+        ( $from, $from_epoch ) = getrun($from);
+
+        # if $to is defied, use it. an empty to mean the "last run" 
+        ( $to, $to_epoch ) = defined $to ? getrun($to) : getrun(0);
+    }
+     
+    die "Run $from does not exist\n" unless $from;
+    die "Run $to does not exist\n" unless $to;
 
     # add wildcard to hostame
     $hostname ||= "";
@@ -220,8 +215,8 @@ sub diffreport {
 
     print "Comparing the results from the audit runs at:\n";
     printf "  %s and %s\n\n",
-      strftime( "%F %H:%M", localtime($startepoch) ),
-      strftime( "%F %H:%M", localtime($stopepoch) );
+      strftime( "%F %H:%M", localtime($from_epoch) ),
+      strftime( "%F %H:%M", localtime($to_epoch) );
 
     foreach my $href (@tables) {
         # i must say i'm pleased with this line :-)
@@ -236,10 +231,10 @@ sub diffreport {
                 lc( $href->{columns} ), $href->{table}, $href->{order};
 
         # get data from the runs
-        my $old = $db->select_aref( $stmt, $start, $hostname )
-          or die "Couldn't get data from the run $start\n";
-        my $new = $db->select_aref( $stmt, $stop, $hostname )
-          or die "Couldn't get data from the run $stop\n";
+        my $old = $db->select_aref( $stmt, $from, $hostname )
+          or die "Couldn't get data from the run $from\n";
+        my $new = $db->select_aref( $stmt, $to, $hostname )
+          or die "Couldn't get data from the run $to\n";
 
         # create a stringifyed representation of each row in arrays
         my $shortkeycolumns = $href->{order} =~ tr/,//;
@@ -362,7 +357,7 @@ sub purgeruns {
 sub listruns {
     my ($count) = @_;
 
-    my @runs = getrun( 99999, $count )
+    my @runs = getrun( -1, $count )
       or die "Didn't find any matching runs\n";
 
     printf "%3s | %s\n", "run", "datetime";
@@ -442,12 +437,11 @@ sub isisreport {
 
 sub getrun {
     my ( $run, $count ) = @_;
-    # run ==     0 => get id of last runs 
-    # run ==    -1 => get id of second to last run
-    # run == 99999 => get id of $count last runs
+    # run ==  0 => get id of last runs 
+    # run == -1 => get id of $count last runs
     # else => check if run exist
 
-    $count ||= 99999;  # safe default
+    $count ||= 999999;  # safe default
     my ( $stmt, $arg );
 
     given ($run) {
@@ -456,11 +450,7 @@ sub getrun {
         }
 
         when ($_ == -1) {
-            $stmt = "SELECT run,epoch FROM runs ORDER BY run DESC LIMIT 1 OFFSET 1";
-        }
-
-        when ($_ == 99999) {
-            $stmt = "SELECT run,epoch FROM runs ORDER BY run ASC LIMIT $count";
+            $stmt = "SELECT run,epoch FROM runs ORDER BY run DESC LIMIT $count";
         }
 
         default {
