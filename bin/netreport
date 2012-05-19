@@ -26,8 +26,6 @@ use Readonly;
 use Text::Aligner;
 use Term::ANSIColor;
 
-use Data::Dumper::Simple;
-
 our $VERSION = $Netaudit::Constants::VERSION;
 
 Readonly my $DATABASE => './netaudit.db';
