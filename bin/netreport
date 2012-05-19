@@ -162,7 +162,7 @@ sub hostruns {
     my @hosts = $db->select_column($stmt)
         or die "No hosts in database.\n";
 
-    $stmt = "SELECT run FROM route_summary WHERE hostname = ?";
+    $stmt = "SELECT DISTINCT run FROM route_summary WHERE hostname = ?";
     # loop over the hosts picking up the runs
     foreach my $host (@hosts) {
         my @runs = $db->select_column($stmt, $host);
@@ -179,7 +179,7 @@ sub runhosts {
     my @runs = $db->select_column($stmt)
         or die "No hosts in database.\n";
 
-    $stmt = "SELECT hostname FROM route_summary WHERE run = ? ORDER BY hostname ASC";
+    $stmt = "SELECT DISTINCT hostname FROM route_summary WHERE run = ? ORDER BY hostname ASC";
     # loop over the runs picking up the hosts
     foreach my $run (@runs) {
         my ( undef, $epoch ) = getrun($run);

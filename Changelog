@@ -1,3 +1,7 @@
+1.06 -- UNRELEASED
+	* bin/netreport: Added DISTINCT to runhosts and hostruns
+	* bin/netreport: removed Data::Dumper::Simple cruft
+
 1.05 -- 20120520
 	* bin/netreport: 
 	  - Fixed interpretation of LIST
