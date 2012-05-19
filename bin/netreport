@@ -26,38 +26,14 @@ use Readonly;
 use Text::Aligner;
 use Term::ANSIColor;
 
+use Data::Dumper::Simple;
+
 our $VERSION = $Netaudit::Constants::VERSION;
 
 Readonly my $DATABASE => './netaudit.db';
 
-# options
-my %opts;
-$opts{colors} = 1;
-
-Getopt::Long::Configure("auto_version");
-
-GetOptions(
-    \%opts, 
-    'database|d=s', 
-    'help|?', 
-    'man',
-    'colors|C!',    # use colors in output
-    'list:i',       # list runs
-    'purge=s',      # purge runs
-    'full:0',       # full reporting of one run
-    'compare|c:0',  # differential reporting from two runs
-    'isis:0',       # check if isis v4 and v6 have same topology
-) or pod2usage(2);
-pod2usage(1) if $opts{help};
-pod2usage( -exitval => 2, -verbose => 2 ) if $opts{man};
-
-# we can't colorize if too old modules
-if ($Term::ANSIColor::VERSION lt '2.01' || $Text::Aligner::VERSION lt '0.06') {
-   # then we can't use colors
-   $opts{colors} = 0;
-}
-
 # AoH of tables and their options
+# Note: When adding an table, Hostname MUST always be first column
 my @tables = (
     {
         table   => 'route_summary',
@@ -109,15 +85,52 @@ my @tables = (
     }
 );
 
+# options
+my %opts;
+$opts{colors} = 1;
+
+Getopt::Long::Configure("auto_version");
+
+GetOptions(
+    \%opts, 
+    'colors|C!',    # use colors in output
+    'compare|c:s',  # differential reporting from two runs
+    'database|d=s', 
+    'full:0',       # full reporting of one run
+    'help|?', 
+    'hosts!',       # lists which runs each host is in
+    'isis:0',       # check if isis v4 and v6 have same topology
+    'list:i',       # list runs
+    'man',
+    'purge=s',      # purge runs
+    'runs!',        # lists which hosts in each run
+) or pod2usage(2);
+pod2usage(1) if $opts{help};
+pod2usage( -exitval => 2, -verbose => 2 ) if $opts{man};
+
 my $dbfile = $opts{database} || $DATABASE;
 ( -f $dbfile ) or die "Cannot find database file $dbfile: $!\n";
 
 my $db = eval { Netaudit::Db->new( database => $dbfile ) };
 die $@ if $@;
 
-# if we should list the runs, just do that and exit
+# we can't colorize if too old modules
+if ($Term::ANSIColor::VERSION lt '2.01' || $Text::Aligner::VERSION lt '0.06') {
+   # then we can't use colors
+   $opts{colors} = 0;
+}
+
+# Check which mode we are in
 if ( exists $opts{list} ) {
     listruns( $opts{list} );
+}
+
+elsif ( exists $opts{hosts} ) {
+    hostruns(); 
+}
+
+elsif ( exists $opts{runs} ) {
+    runhosts();
 }
 
 elsif ( exists $opts{purge} ) {
@@ -125,33 +138,15 @@ elsif ( exists $opts{purge} ) {
 }
 
 elsif ( exists $opts{isis} ) {
-    # if $isis = 0 (or undef), use run from last run
-    #isisreport( $opts{isis} || $lastrun );
     isisreport( $opts{isis} );
 }
 
 elsif ( exists $opts{full} ) {
-    # if $full = 0 (or undef), use run from last run
-    #fullreport( $opts{full} || $lastrun, shift @ARGV ); 
     fullreport( $opts{full}, shift @ARGV ); 
 }
 
 elsif ( exists $opts{compare} ) {
-    my ( $from, $to ) = split( /-/, $opts{compare} );
-
-    my $lastrun = getrun(0);
-
-    # if $to is undef then we have a "N" or "N-" option
-    if ( !defined $to ) {
-        $to = $lastrun;
-    }
-
-    # if $from = '' then we have a "-N" option
-    if ( $from eq '' ) {
-        $from = $lastrun - $to;
-        $to   = $lastrun;
-    }
-    diffreport( $from, $to, shift @ARGV );
+   diffreport( $opts{compare}, shift @ARGV );
 }
 
 # if we end up here no operational mode is selected
@@ -160,6 +155,40 @@ else {
 }
 
 exit;
+
+#---
+
+sub hostruns {
+    # get the list of hostnames 
+    my $stmt = "SELECT DISTINCT hostname FROM route_summary";
+    my @hosts = $db->select_column($stmt)
+        or die "No hosts in database.\n";
+
+    $stmt = "SELECT run FROM route_summary WHERE hostname = ?";
+    # loop over the hosts picking up the runs
+    foreach my $host (@hosts) {
+        my @runs = $db->select_column($stmt, $host);
+        print "Host: $host\n";
+        print "Runs: ", join(", ", @runs), "\n\n";
+    }
+}    
+
+#---
+
+sub runhosts {
+    # get the list of runs
+    my $stmt = "SELECT run FROM runs";
+    my @runs = $db->select_column($stmt)
+        or die "No hosts in database.\n";
+
+    $stmt = "SELECT hostname FROM route_summary WHERE run = ? ORDER BY hostname ASC";
+    # loop over the runs picking up the hosts
+    foreach my $run (@runs) {
+        my ( undef, $epoch ) = getrun($run);
+        printf "Run: %s (%s)\n", $run, strftime( "%F %H:%M", localtime($epoch) );
+        print "Hosts: ", join( ", ", gethosts($run) ), "\n\n";
+    }
+}
 
 #---
 
@@ -207,28 +236,74 @@ sub fullreport {
 #---
 
 sub diffreport {
-    my ( $start, $stop, $hostname ) = @_;
+    my ( $compare, $hostname ) = @_;
+    my ( $from, $from_epoch, $to, $to_epoch );
 
-    my ( undef, $startepoch ) = getrun($start)
-      or die "Run $start do not exist";
-    my ( undef, $stopepoch ) = getrun($stop)
-      or die "Run $stop do not exist";
+    if ($compare eq '' || $compare eq "0") {
+        # get the two last runs
+        ( $to, $to_epoch, $from, $from_epoch ) = getrun(-1, 2);
+    }
+    else {
+        ( $from, $to ) = $compare =~ m!^(\d+) (?: - (\d+))*$!xms;
+        die "Illegal compare argument: $compare\n" 
+            unless defined($from);
 
-    # add wildcard to hostame
+        # get from run
+        ( $from, $from_epoch ) = getrun($from);
+
+        # if $to is defied, use it. an empty to mean the "last run" 
+        ( $to, $to_epoch ) = defined $to ? getrun($to) : getrun(0);
+    }
+
+    die "Run $from does not exist\n" unless $from;
+    die "Run $to does not exist\n" unless $to;
+
+    # which hosts did we collect data from in the runs
+    my @from_hosts = gethosts($from);
+    my @to_hosts   = gethosts($to);
+
+    # calculate the intersection and symmetric difference 
+    # of the hosts, i.e. the hosts present in both runs, and
+    # those in only one run
+    # code from receipe 4.8 in perl cookbook
+    my @isect_hosts = ();
+    my @diff_hosts  = ();
+    my %count;
+    foreach my $e ( @from_hosts, @to_hosts ) { $count{$e}++ }
+    foreach my $e ( keys %count ) {
+        push @{ $count{$e} == 2 ? \@isect_hosts : \@diff_hosts }, $e;
+    }
+
+    print "Comparing the results from the audit runs\n";
+    printf " %2d: %s\n", $from, strftime( "%F %H:%M", localtime($from_epoch) );
+    printf " %2d: %s\n", $to,   strftime( "%F %H:%M", localtime($to_epoch) );
+    print "\n";
+
+    if (@diff_hosts) {
+        my ( %u, %i );
+        print "The hosts in the runs do not overlap completly. Only comparing hosts\n";
+        print "audited in both runs. Those are:\n";
+        map { print " - $_\n"; } @isect_hosts;
+        print "\n";
+    }
+
+    # if a hostname is given on cli and we do have non-empty @diff_hosts
+    # we have only got results for one run for that host. no point in
+    # running compare then.
+    die "We have only data for one of the runs for $hostname\n" 
+        if (defined $hostname && @diff_hosts);
+
+    # make sure hostname is defined and add wildcard
     $hostname ||= "";
     $hostname .= "%";
-
-    print "Comparing the results from the audit runs at:\n";
-    printf "  %s and %s\n\n",
-      strftime( "%F %H:%M", localtime($startepoch) ),
-      strftime( "%F %H:%M", localtime($stopepoch) );
 
     foreach my $href (@tables) {
         # i must say i'm pleased with this line :-)
         my @colspec =
           ( \'| ', map { ( $_, \' | ' ) } split( /,/, $href->{columns} ) );
-        # add a trailing "Change" colums
-        push( @colspec, "Comment", \' |' );
+        # replace the last col attribute with one without a trailing space
+        $colspec[-1] = \' |';
+
         my $table = Text::Table->new(@colspec);
 
         my $stmt = 
@@ -236,21 +311,30 @@ sub diffreport {
                 lc( $href->{columns} ), $href->{table}, $href->{order};
 
         # get data from the runs
-        my $old = $db->select_aref( $stmt, $start, $hostname )
-          or die "Couldn't get data from the run $start\n";
-        my $new = $db->select_aref( $stmt, $stop, $hostname )
-          or die "Couldn't get data from the run $stop\n";
+        my $old = $db->select_aref( $stmt, $from, $hostname )
+          or die "Couldn't get data from the run $from\n";
+        my $new = $db->select_aref( $stmt, $to, $hostname )
+          or die "Couldn't get data from the run $to\n";
 
-        # create a stringifyed representation of each row in arrays
+        # only keep those rows in old and new where the hostname is in 
+        # the isect_hosts list
+        my $helper = sub { return scalar grep { /^$_[0]$/ } @isect_hosts }; 
+        @{ $old } = grep { &$helper($$_[0]) } @{ $old };
+        @{ $new } = grep { &$helper($$_[0]) } @{ $new };
+
+        # when running the diff, we can't compare the rows with data directly.
+        # instead, create a stringified representation of each row, and
+        # compare that one. 
+        #
+        # fullkey is a string covering all columns, and is used as the key when
+        # running diff over the old and new arrays.
+        #
+        # shortkey is a string covering the columns needed to identify one data
+        # point. if two such strings are identical, the rest of the columns
+        # are variable data that should be compared.
+        #
         my $shortkeycolumns = $href->{order} =~ tr/,//;
-        foreach my $aref ( @{$old} ) {
-            my $fullkey = join( ";", map { $_ || "" } @{$aref} );
-            my $shortkey =
-              join( ";", map { $_ || "" } @{$aref}[ 0 .. $shortkeycolumns ] );
-            push( @{$aref}, $shortkey, $fullkey );
-        }
-
-        foreach my $aref ( @{$new} ) {
+        foreach my $aref ( @{$old}, @{$new} ) {
             my $fullkey = join( ";", map { $_ || "" } @{$aref} );
             my $shortkey =
               join( ";", map { $_ || "" } @{$aref}[ 0 .. $shortkeycolumns ] );
@@ -268,6 +352,7 @@ sub diffreport {
             foreach my $element ( @{$hunk} ) {
                 my $op   = @{$element}[0];
                 my $item = @{$element}[2];
+                # copy "shortkey" to key and drop "fullkey"
                 my ( $key, undef ) = splice( @{$item}, -2 );
                 push( @{ $HoA{$key} }, [ $op, $item ] );
             }
@@ -278,12 +363,10 @@ sub diffreport {
             if ( scalar @{ $HoA{$k} } == 1 ) {
                 my ( $op, $element ) = splice @{ ${ $HoA{$k} }[0] }, -2;
                 if ( $op eq '+' ) {
-                    my @a = map { formatitem( $_ || "" ) } @{$element};
-                    $table->add( @a, 'Added' );
+                    $table->add( map { formatitem( $_ || "" ) } @{$element} );
                 }
                 else {
-                    my @a = map { formatitem( $_ ? "[$_]" : "" ) } @{$element};
-                    $table->add( @a, 'Removed' );
+                    $table->add( map { formatitem( $_ ? "[$_]" : "" ) } @{$element} );
                 }
             }
             else {
@@ -362,7 +445,7 @@ sub purgeruns {
 sub listruns {
     my ($count) = @_;
 
-    my @runs = getrun( 99999, $count )
+    my @runs = getrun( -1, $count )
       or die "Didn't find any matching runs\n";
 
     printf "%3s | %s\n", "run", "datetime";
@@ -442,12 +525,11 @@ sub isisreport {
 
 sub getrun {
     my ( $run, $count ) = @_;
-    # run ==     0 => get id of last runs 
-    # run ==    -1 => get id of second to last run
-    # run == 99999 => get id of $count last runs
+    # run ==  0 => get id of last runs 
+    # run == -1 => get id of $count last runs
     # else => check if run exist
 
-    $count ||= 99999;  # safe default
+    $count ||= 999999;  # safe default
     my ( $stmt, $arg );
 
     given ($run) {
@@ -456,11 +538,7 @@ sub getrun {
         }
 
         when ($_ == -1) {
-            $stmt = "SELECT run,epoch FROM runs ORDER BY run DESC LIMIT 1 OFFSET 1";
-        }
-
-        when ($_ == 99999) {
-            $stmt = "SELECT run,epoch FROM runs ORDER BY run ASC LIMIT $count";
+            $stmt = "SELECT run,epoch FROM runs ORDER BY run DESC LIMIT $count";
         }
 
         default {
@@ -479,6 +557,17 @@ sub getrun {
     }
 
     return wantarray ? @result : $result[0];
+}
+
+#---
+
+sub gethosts {
+    my ( $run ) = @_;
+
+    my $stmt = "SELECT DISTINCT hostname FROM route_summary WHERE run = ?";
+    my @hosts = $db->select_column($stmt, $run);
+
+    return @hosts;
 }
 
 #---
@@ -594,11 +683,6 @@ Only one mode can be chosen at a time.
 
 =over
 
-=item B<-d> | B<--database>
-
-The database, created by netaudit, to report from.
-Default is F<./netaudit.db>
-
 =item B<-C> | B<--colors>
 
 Enable colorized output.
@@ -607,6 +691,11 @@ This is used when running in compare/diff mode.
 If the application is run from (for example) cron, it's strongly
 recommended to NOT use colors.
 Default is ON.
+
+=item B<-d> F<filename> | B<--database>=F<filename>
+
+The database, created by netaudit, to report from.
+Default is F<./netaudit.db>
 
 =back
 
@@ -622,10 +711,6 @@ two last runs.
 
 If a I<hostname> is specified the report is only run for that
 particular host.
-
-=item B<-d> F<filename> | B<--database>=F<filename>
-
-The database file. Default is F<./netaudit.db>
 
 =item B<-f> [NUM] | B<--full>[=NUM]
 

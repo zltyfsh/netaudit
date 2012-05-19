@@ -82,7 +82,7 @@ sub run {
     # shortcut
     my $db = $config->{db};
 
-    # set hostname to use in database object (after stripping domain)
+    # store hostname in database object
     $db->hostname($host);
 
     # run audits

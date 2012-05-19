@@ -1,7 +1,5 @@
-* The compare modes do only work correctly when comparing the same set of
-  devices. This is a bug that needs fixing,  and probably a new database
-  scheme.
-
 * Add additional output formats beyond text, for example html
 
 * Add other device types, for example JunOSe (Juniper E/ERX-series)
+
+* Fix alignment problems for "host" column in isis top and ne

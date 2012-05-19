@@ -1,6 +1,10 @@
-CREATE TABLE IF NOT EXISTS db (
-       version	    TEXT
+DROP TABLE IF EXISTS db;
+--
+CREATE TABLE db (
+       version	    INTEGER
 );
+--
+INSERT INTO db (version) VALUES ('1');
 --
 CREATE TABLE IF NOT EXISTS runs (
        run 	    INTEGER PRIMARY KEY AUTOINCREMENT,

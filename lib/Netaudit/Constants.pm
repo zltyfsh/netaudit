@@ -15,14 +15,11 @@ use Readonly;
 use base qw{ Exporter };
 our @EXPORT = qw{ $VERSION $AUDIT_OK $AUDIT_NODATA $AUDIT_FAIL $SCHEMA_VER };
 
-our $VERSION = 1.04;
+our $VERSION = 1.05;
 
 # Success/failure codes for all audit subs
 Readonly my $AUDIT_FAIL   => 0;
 Readonly my $AUDIT_OK     => 1;
 Readonly my $AUDIT_NODATA => 2;
-
-# Our schema version
-Readonly my $SCHEMA_VER => 1;
 
 1;
