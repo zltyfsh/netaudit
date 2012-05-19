@@ -1,4 +1,4 @@
-1.05 -- unreleased
+1.05 -- 20120520
 	* bin/netreport: 
 	  - Fixed interpretation of LIST
 	  - Added modes --runs and --hosts
