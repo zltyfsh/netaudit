@@ -1,6 +1,8 @@
-1.06 -- UNRELEASED
-	* bin/netreport: Added DISTINCT to runhosts and hostruns
-	* bin/netreport: removed Data::Dumper::Simple cruft
+1.05.1 -- 20120520
+	* bin/netreport: 
+	  - Added DISTINCT to runhosts and hostruns
+	  - Removed Data::Dumper::Simple cruft
+	  - Added --hosts and --runs to man page
 
 1.05 -- 20120520
 	* bin/netreport: 
