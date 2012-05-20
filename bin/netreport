@@ -718,13 +718,18 @@ Default (when no NUM) is to print the report from the last run.
 If a I<hostname> is specified the report is only run for that
 particular host.
 
+=item B<--hosts>
+
+For each host in the database print the runs which there
+are stored data in the database.
+
 =item B<-i> [NUM] | B<--isis>[=NUM]
 
 Compare the ISIS topologies for IPv4 and IPv6, and report any
 differences in outgoing interfaces and/or metrics.
 Default (when no NUM) is to print the report from the last run.
 
-=item B<-l> [NUM] | B<--list>[=NUM]
+=item B<--list>[=NUM]
 
 Lists the NUM last runs stored in the database. Without a NUM all runs
 are printed.
@@ -732,6 +737,11 @@ are printed.
 =item B<-p> LIST | B<--purge>=LIST
 
 Remove the runs from the database matching LIST
+
+=item B<--runs>
+
+For each run in the database print the hosts which there
+are stored data in the database.
 
 =back
 
