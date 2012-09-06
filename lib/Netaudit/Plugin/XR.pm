@@ -1,8 +1,8 @@
 #
 # Copyright (c) 2012, Per Carlson
 #
-# This program is free software; you can redistribute it and/or 
-# modify it under the same terms as Perl 5.14. For more details, 
+# This program is free software; you can redistribute it and/or
+# modify it under the same terms as Perl 5.14. For more details,
 # see the full text of the licenses in the directory LICENSES.
 #
 
@@ -19,12 +19,17 @@ use Netaudit::Constants;
 
 ### RegExps ###
 
-my $HOSTNAME  = qr{ [-\p{Alnum}\.]+ }xms;
+my $HOSTNAME  = qr! [-\p{Alnum}\.]+ !xms;
 my $PROMPT    = '/RP\/\d+\/(RP)*\d+\/CPU\d+:[-\p{Alnum}\.]+#\s*/';
-my @HANDLES   = (qr{ Cisco \s IOS \s XR \s Software }xms);
+
+my @HANDLES   = (
+  qr{ Cisco \s IOS \s XR \s Software }xms
+);
+
 my $MAC       = qr{ [0-f]{4} \. [0-f]{4} \. [0-f]{4} }xms;
+
 my $INTERFACE = qr{ 
-    (?:Te|Gi [a-zA-Z]*)      # interface type
+  (?:Te|Gi [a-zA-Z]*)      # interface type
 	(?:\d+ /){3} \d+         # chassis / slot / module / port 
 	(?:\. \d+ )*             # optional sub-interface
 }xms;
@@ -32,8 +37,8 @@ my $INTERFACE = qr{
 ##### do this plugin handle the device? #####
 
 sub handles {
-    my ( $self, $sysdescr ) = @_;
-    return scalar grep { $sysdescr =~ m/$_/ } @HANDLES;
+  my ($self, $sysdescr) = @_;
+  return scalar grep { $sysdescr =~ m/$_/ } @HANDLES;
 }
 
 ##### Return the prompt to use #####
@@ -43,142 +48,148 @@ sub prompt { return $PROMPT }
 ##### Set up environment #####
 
 sub init {
-    my ( $self, $conn ) = @_;
-    # disable "--more--" prompt
-    $conn->cmd("terminal length 0");
+  my ($self, $conn) = @_;
 
-    # no timestamps in show commands
-    # official version first...
-    $conn->cmd("terminal exec prompt no-timestamp");
-    # and the 3.6.3 hack later
-    $conn->cmd("terminal no-timestamp");
-	return;
+  # disable "--more--" prompt
+  $conn->cmd("terminal length 0");
+
+  # no timestamps in show commands
+  # official version first...
+  $conn->cmd("terminal exec prompt no-timestamp");
+
+  # and the 3.6.3 hack later
+  $conn->cmd("terminal no-timestamp");
+  return;
 }
 
 ##### routing summary #####
 
 sub route_summary {
-    my ( $self, $conn, $db ) = @_;
-    return $AUDIT_FAIL unless $conn && $db;
+  my ($self, $conn, $db) = @_;
+  return $AUDIT_FAIL unless $conn && $db;
 
-    # Example output:
-    # IPv4 Unicast:
-    # -------------
-    #
-    # Route Source    Routes    Backup    Deleted    Memory (bytes)
-    # connected       19        1         0          2720
-    # local           20        0         0          2720
-    # local LSPV      1         0         0          136
-    # bgp 2116        401132    26        6          54557944
-    # isis ISIS       412       19        0          80096
-    # dagr            0         0         0          0
-    # Total           401584    46        6          54643616
-    #
-    # IPv6 Unicast:
-    # -------------
-    #
-    # Route Source    Routes    Backup    Deleted    Memory (bytes)
-    # connected       19        1         0          3280
-    # local           20        0         0          3280
-    # bgp 2116        7821      0         0          1282644
-    # isis ISIS       324       19        0          81508
-    # Total           8184      20        0          1370712
+  # Example output:
+  # IPv4 Unicast:
+  # -------------
+  #
+  # Route Source    Routes    Backup    Deleted    Memory (bytes)
+  # connected       19        1         0          2720
+  # local           20        0         0          2720
+  # local LSPV      1         0         0          136
+  # bgp 2116        401132    26        6          54557944
+  # isis ISIS       412       19        0          80096
+  # dagr            0         0         0          0
+  # Total           401584    46        6          54643616
+  #
+  # IPv6 Unicast:
+  # -------------
+  #
+  # Route Source    Routes    Backup    Deleted    Memory (bytes)
+  # connected       19        1         0          3280
+  # local           20        0         0          3280
+  # bgp 2116        7821      0         0          1282644
+  # isis ISIS       324       19        0          81508
+  # Total           8184      20        0          1370712
 
-    my ($h);
-    foreach my $line ( $conn->cmd("show route afi-all summary") ) {
-        $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
-        chomp($line);
+  my ($h);
+  foreach my $line ($conn->cmd("show route afi-all summary")) {
+    $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
+    chomp($line);
 
-        given ($line) {
-            # track afi
-            when (/^ (IPv4 | IPv6) \s Unicast/xms) { $h->{afi} = lc($1); }
+    given ($line) {
 
-            # capture each protocol
-            when (/^connected \s+ (\d+)/xms)       { $h->{connected} = $1; }
-            when (/^static \s+ (\d+)/xms)          { $h->{static}    = $1; }
-            when (/^local \s+ (\d+)/xms)           { $h->{local}     = $1; }
-            when (/^bgp \s+ \d+ \s+ (\d+)/xms)     { $h->{bgp}       = $1; }
-            when (/^isis \s+ [-\w]+ \s+ (\d+)/xms) { $h->{isis}      = $1; }
+      # track afi
+      when (/^ (IPv4 | IPv6) \s Unicast/xms) { $h->{afi} = lc($1); }
 
-            # when we hits total, store data
-            when (/^Total/) {
-                $db->insert( 'route_summary', $h );
-                $h = ();
-            }
-        }
+      # capture each protocol
+      when (/^connected \s+ (\d+)/xms)       { $h->{connected} = $1; }
+      when (/^static \s+ (\d+)/xms)          { $h->{static}    = $1; }
+      when (/^local \s+ (\d+)/xms)           { $h->{local}     = $1; }
+      when (/^bgp \s+ \d+ \s+ (\d+)/xms)     { $h->{bgp}       = $1; }
+      when (/^isis \s+ [-\w]+ \s+ (\d+)/xms) { $h->{isis}      = $1; }
+
+      # when we hits total, store data
+      when (/^Total/) {
+        $db->insert('route_summary', $h);
+        $h = ();
+      }
     }
-    return $AUDIT_OK;
+  }
+  return $AUDIT_OK;
 }
 
 ##### ISIS Topology #####
 
 sub isis_topology {
-    my ( $self, $conn, $db ) = @_;
-    return $AUDIT_FAIL unless $conn && $db;
+  my ($self, $conn, $db) = @_;
+  return $AUDIT_FAIL unless $conn && $db;
 
-    my ($afi);
+  my ($afi);
 
-    foreach my $line ( $conn->cmd("show isis afi-all topology level 2") ) {
-        $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
-        chomp($line);
+  foreach my $line ($conn->cmd("show isis afi-all topology level 2")) {
+    $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
+    chomp($line);
 
-        # Example output:
-        #
-        # IS-IS ISIS paths to IPv4 Unicast (Level-2) routers
-        # System Id       Metric  Next-Hop        Interface       SNPA
-        # ar2.s138        599     cr1.fn3         Te0/3/0/0       *PtoP*
-        # ar2.s138        599     cr1.fn3         Te0/1/0/0       *PtoP*
-        # gr1.tx          16777613  cr1.fn3         Te0/3/0/0       *PtoP*
-        # gr1.tx          16777613  cr1.fn3         Te0/1/0/0       *PtoP*
-        # oslo-SAN110-p2  --
-        # stavang-FABV8-p2  100     stavang-FABV8-p2  Te0/0/0/0       *PtoP*
-        #
-        # IS-IS ISIS paths to IPv6 Unicast (Level-2) routers
-        # System Id       Metric  Next-Hop        Interface       SNPA
-        # ar2.s138        599     cr1.fn3         Te0/3/0/0       *PtoP*
-        # ar2.s138        599     cr1.fn3         Te0/1/0/0       *PtoP*
-        # gr1.tx          **
-        # oslo-SAN110-p2  --
-        # stavang-FABV8-p2  100     stavang-FABV8-p2  Te0/0/0/0       *PtoP*
+    # Example output:
+    #
+    # IS-IS ISIS paths to IPv4 Unicast (Level-2) routers
+    # System Id       Metric  Next-Hop        Interface       SNPA
+    # ar2.s138        599     cr1.fn3         Te0/3/0/0       *PtoP*
+    # ar2.s138        599     cr1.fn3         Te0/1/0/0       *PtoP*
+    # gr1.tx          16777613  cr1.fn3         Te0/3/0/0       *PtoP*
+    # gr1.tx          16777613  cr1.fn3         Te0/1/0/0       *PtoP*
+    # oslo-SAN110-p2  --
+    # stavang-FABV8-p2  100     stavang-FABV8-p2  Te0/0/0/0       *PtoP*
+    #
+    # IS-IS ISIS paths to IPv6 Unicast (Level-2) routers
+    # System Id       Metric  Next-Hop        Interface       SNPA
+    # ar2.s138        599     cr1.fn3         Te0/3/0/0       *PtoP*
+    # ar2.s138        599     cr1.fn3         Te0/1/0/0       *PtoP*
+    # gr1.tx          **
+    # oslo-SAN110-p2  --
+    # stavang-FABV8-p2  100     stavang-FABV8-p2  Te0/0/0/0       *PtoP*
 
-        given ($line) {
-            # skip headers
-            when (/^System Id/) { }
+    given ($line) {
 
-            # grab afi
-            when (/^IS-IS .* (IPv4 | IPv6) /xms) { $afi = lc($1); }
+      # skip headers
+      when (/^System Id/) { }
 
-            # get all entries with numerical metric
-            when (/^($HOSTNAME)       # neighbour ($1)
+      # grab afi
+      when (/^IS-IS .* (IPv4 | IPv6) /xms) { $afi = lc($1); }
+
+      # get all entries with numerical metric
+      when (
+        /^($HOSTNAME)       # neighbour ($1)
 	     			\s+
 	     			(\d+)             # metric ($2)
 	     			\s+ $HOSTNAME \s+
 	     			($INTERFACE)
-	    	/xms) {
-                $db->insert(
-                    'isis_topology',
-                    {
-                        host      => $1,
-                        metric    => $2,
-                        interface => $3,
-                        afi       => $afi
-                    }
-                );
-            }
-        }
+	    	/xms
+        )
+      {
+        $db->insert(
+          'isis_topology',
+          {
+            host        => $1,
+              metric    => $2,
+              interface => $3,
+              afi       => $afi
+          });
+      }
     }
-    return $AUDIT_OK;
+  }
+  return $AUDIT_OK;
 }
 
 ##### ISIS Neighbors #####
 
 sub isis_neighbours {
-    my ( $self, $conn, $db ) = @_;
-    return $AUDIT_FAIL unless $conn && $db;
+  my ($self, $conn, $db) = @_;
+  return $AUDIT_FAIL unless $conn && $db;
 
-    foreach my $line ( $conn->cmd("show isis neighbors") ) {
-        $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
-        chomp($line);
+  foreach my $line ($conn->cmd("show isis neighbors")) {
+    $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
+    chomp($line);
 
 # Example output:
 #
@@ -195,41 +206,46 @@ sub isis_neighbours {
 #
 # Total neighbor count: 19
 
-        given ($line) {
-            # skip headers
-            when ( /^IS-IS/ || /^System Id/ || /^Total neighbour count/ ) {
-            }    # do nothing
+    given ($line) {
 
-            when (/^($HOSTNAME)                      # neighbour, $1
+      # skip headers
+      when (/^IS-IS/ || /^System Id/ || /^Total neighbour count/) {
+      }    # do nothing
+
+      when (
+        /^($HOSTNAME)                      # neighbour, $1
 	     			\s+ 
 	     			($INTERFACE)                      # interface, $2
 	     			\s+ (?: $MAC | \*PtoP\* ) \s+     
 	     			(\w+)                             # state, $3
-	    	/xms) {
-                $db->insert(
-                    'isis_neighbour',
-                    {
-                        neighbour => $1, interface => $2, state => lc($3)
-                    }
-                );
-            }
-        }
+	    	/xms
+        )
+      {
+        $db->insert(
+          'isis_neighbour',
+          {
+            neighbour   => $1,
+              interface => $2,
+              state     => lc($3)
+          });
+      }
     }
-    return $AUDIT_OK;
+  }
+  return $AUDIT_OK;
 }
 
 ##### BGP IPv46 summary #####
 
 sub bgp {
-    my ( $self, $conn, $db ) = @_;
-    return $AUDIT_FAIL unless $conn && $db;
+  my ($self, $conn, $db) = @_;
+  return $AUDIT_FAIL unless $conn && $db;
 
-    my ( $afi, $peer, $vrf );
+  my ($afi, $peer, $vrf);
 
-    # first we do IPv4 and IPv6
-    foreach my $line ( $conn->cmd("show bgp all unicast summary") ) {
-        $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
-        chomp($line);
+  # first we do IPv4 and IPv6
+  foreach my $line ($conn->cmd("show bgp all unicast summary")) {
+    $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
+    chomp($line);
 
 # Example command output:
 #
@@ -256,45 +272,55 @@ sub bgp {
 # fd00:8c0:2116::1:10
 #                   0     1  491659  544920       70    0    0     8w2d          1
 
-        given ($line) {
-            when (/^Address \s Family: \s (IPv4 | IPv6)/xms) { $afi = lc($1); }
+    given ($line) {
+      when (/^Address \s Family: \s (IPv4 | IPv6)/xms) { $afi = lc($1); }
 
-            when (/^($RE{net}{IPv4})      # peer, $1
+      when (
+        /^($RE{net}{IPv4})      # peer, $1
 	     			\s+ \d+ \s+
 	     			(\d+)                  # asn, $2
 	     			.*?                     # don't care fillings
 	     			(\d+)$                 # prefixes, $3
-	    	/xms) {
-                $db->insert(
-                    'bgp',
-                    {
-                        peer => $1, asn => $2, prefixes => $3, afi => $afi
-                    }
-                );
-            }
+	    	/xms
+        )
+      {
+        $db->insert(
+          'bgp',
+          {
+            peer       => $1,
+              asn      => $2,
+              prefixes => $3,
+              afi      => $afi
+          });
+      }
 
-            # for IPv6 peers, we need to store peer ip
-            when (/^($IPv6_re)/) { $peer = $1; }
+      # for IPv6 peers, we need to store peer ip
+      when (/^($IPv6_re)/) { $peer = $1; }
 
-            when (/^ \s+ \d+ \s+
+      when (
+        /^ \s+ \d+ \s+
 	     			(\d+)           # asn, $1
 	     			.*?             # don't care fillings
 	     			(\d+)$          # prefixes, $2
-	    	/xms) {
-                $db->insert(
-                    'bgp',
-                    {
-                        peer => $peer, asn => $1, prefixes => $2, afi => $afi
-                    }
-                );
-            }
-        }
+	    	/xms
+        )
+      {
+        $db->insert(
+          'bgp',
+          {
+            peer       => $peer,
+              asn      => $1,
+              prefixes => $2,
+              afi      => $afi
+          });
+      }
     }
+  }
 
-    # and then the IPv4 peerings in VRF's
-    foreach my $line ( $conn->cmd("show bgp vrf all summary") ) {
-        $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
-        chomp($line);
+  # and then the IPv4 peerings in VRF's
+  foreach my $line ($conn->cmd("show bgp vrf all summary")) {
+    $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
+    chomp($line);
 
    # Example command output:
    #
@@ -316,35 +342,38 @@ sub bgp {
    # Neighbor    Spk    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  St/PfxRcd
    # 11.0.3.2      0    10   32845   33644      148    0    0    3d21h        2
 
-        given ($line) {
-            # grab VRF name
-            when (/^VRF: \s+ (.*) $/xms) { $vrf = $1; }
+    given ($line) {
 
-            # then neighbour and prefixes
-            when (/^($RE{net}{IPv4})   # peer, $1
+      # grab VRF name
+      when (/^VRF: \s+ (.*) $/xms) { $vrf = $1; }
+
+      # then neighbour and prefixes
+      when (
+        /^($RE{net}{IPv4})   # peer, $1
 	     			\s+ \d+ \s+
 	     			(\d+)               # asn, $2
 	     			.*?
 	     			(\d+)$
-			/xms) {    # prefixes, $3
-                $db->insert(
-                    'bgp',
-                    {
-                        peer     => $1,
-                        asn      => $2,
-                        afi      => "vpnv4",
-                        vrf      => $vrf,
-                        prefixes => $3
-                    }
-                );
-            }
-        }
+			/xms
+        )
+      {    # prefixes, $3
+        $db->insert(
+          'bgp',
+          {
+            peer       => $1,
+              asn      => $2,
+              afi      => "vpnv4",
+              vrf      => $vrf,
+              prefixes => $3
+          });
+      }
     }
+  }
 
-    # and finally, VPNv4 peerings
-    foreach my $line ( $conn->cmd("show bgp vpnv4 unicast summary") ) {
-        $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
-        chomp($line);
+  # and finally, VPNv4 peerings
+  foreach my $line ($conn->cmd("show bgp vpnv4 unicast summary")) {
+    $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
+    chomp($line);
 
   # Example comamnd output:
   #
@@ -365,23 +394,28 @@ sub bgp {
   # 172.16.1.6     0     1       0       0        0    0    0 00:00:00 Idle
   # 172.16.1.10    0     1       0       0        0    0    0 00:00:00 Active
 
-        given ($line) {
-            when (/^($RE{net}{IPv4})   # peer, $1
+    given ($line) {
+      when (
+        /^($RE{net}{IPv4})   # peer, $1
 	     			\s+ \d+ \s+
 	     			(\d+)               # asn, $2
 	     			.*?                  # dont' care filler
 	     			(\d+)$              # prefixes, $3
-	    	/xms) {
-                $db->insert(
-                    'bgp',
-                    {
-                        peer => $1, asn => $2, afi => "vpnv4", prefixes => $3
-                    }
-                );
-            }
-        }
+	    	/xms
+        )
+      {
+        $db->insert(
+          'bgp',
+          {
+            peer       => $1,
+              asn      => $2,
+              afi      => "vpnv4",
+              prefixes => $3
+          });
+      }
     }
-    return $AUDIT_OK;
+  }
+  return $AUDIT_OK;
 }
 
 #---

@@ -1,8 +1,8 @@
 #
 # Copyright (c) 2012, Per Carlson
 #
-# This program is free software; you can redistribute it and/or 
-# modify it under the same terms as Perl 5.14. For more details, 
+# This program is free software; you can redistribute it and/or
+# modify it under the same terms as Perl 5.14. For more details,
 # see the full text of the licenses in the directory LICENSES.
 #
 
@@ -13,7 +13,12 @@ use warnings;
 use Readonly;
 
 use base qw{ Exporter };
-our @EXPORT = qw{ $VERSION $AUDIT_OK $AUDIT_NODATA $AUDIT_FAIL $SCHEMA_VER };
+our @EXPORT = qw{ 
+  $VERSION 
+  $AUDIT_OK 
+  $AUDIT_NODATA 
+  $AUDIT_FAIL 
+};
 
 our $VERSION = 1.05;
 
