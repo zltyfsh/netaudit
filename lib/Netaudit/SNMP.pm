@@ -13,10 +13,11 @@ use Net::SNMP;
 use Carp;
 
 use Netaudit::Constants;
+use Netaudit::DNS;
 
 # SNMP OIDs
 
-my %oid = (
+my $oid = {
   # from SNMPv2 MIB
   'sysDescr'  => '.1.3.6.1.2.1.1.1.0',    # scalar
   'sysUptime' => '.1.3.6.1.2.1.1.3.0',    # scalar
@@ -37,91 +38,35 @@ my %oid = (
     'ipv6InterfaceEnableStatus' => '.1.3.6.1.2.1.4.30.1.5',
   },
 
-  'stdVPN' => {
+  'vrf' => {
     # From MPLS-L3VPN-STD-MIB
     'ActiveInterfaces'     => '.1.3.6.1.2.1.10.166.11.1.2.2.1.7',
     'AssociatedInterfaces' => '.1.3.6.1.2.1.10.166.11.1.2.2.1.8',
   },
 
-  'ciscoVPN' => {
-    # Cisco experimental L3VPN-MIB
-    'ConfiguredVrfs'       => '.1.3.6.1.3.118.1.1.1.0',     # scalar
-    'ActiveVrfs'           => '.1.3.6.1.3.118.1.1.2.0',     # scalar
-    'ConnectedInterfaces'  => '.1.3.6.1.3.118.1.1.3.0',     # scalar
-    'ActiveInterfaces'     => '.1.3.6.1.3.118.1.2.2.1.6',
-    'AssociatedInterfaces' => '.1.3.6.1.3.118.1.2.2.1.7',
-  },
-
-  'stdPW' => {
+  'pwe3' => {
     # PW-STD-MIB
     'PeerAddr'   => '.1.3.6.1.2.1.10.246.1.2.1.9',
     'ID'         => '.1.3.6.1.2.1.10.246.1.2.1.12',
     'Name'       => '.1.3.6.1.2.1.10.246.1.2.1.32',
     'OperStatus' => '.1.3.6.1.2.1.10.246.1.2.1.38',
   },
-
-  'ciscoPW' => {
-    # Cisco experimental PW MIB
-    'PeerAddr'   => '.1.3.6.1.4.1.9.10.106.1.2.1.9',
-    'ID'         => '.1.3.6.1.4.1.9.10.106.1.2.1.10',
-    'Name'       => '.1.3.6.1.4.1.9.10.106.1.2.1.21',
-    'OperStatus' => '.1.3.6.1.4.1.9.10.106.1.2.1.26',
-  },
-);
-
-# From IF-MIB
-my %ifOperStatus = (
-  1 => "up",
-  2 => "down",
-  3 => "testing",
-  4 => "unknown",
-  5 => "dormant",
-  6 => "notPresent",
-  7 => "lowerLayerDown",
-);
-
-# From IP-MIB
-my %ipEnableStatus = (
-  1   => "up",
-  2   => "down",
-  doh => "",
-);
-
-# From PW-TC-STD-MIB
-my %VcOperStatus = (
-  1 => "up",
-  2 => "down",
-  3 => "testing",
-  4 => "dormant",
-  5 => "notPresent",
-  6 => "lowerLayerDown",
-);
-
-# From IANAifTypeMIB
-my @ifTypes = (
-  6 ,     # ethernetCsmacd, all ethernet-like interfaces, as per RFC3635
-  24,     # softwareLoopback
-  39,     # sonet, SONET or SDH
-  131,    # tunnel, Encapsulation interface
-  150,    # mplsTunnel, MPLS Tunnel Virtual Interface
-  161,    # ieee8023adLag, IEEE 802.3ad Link Aggregate
-  166,    # mpls
-);
+};
 
 #-- Attributes
 
 has 'hostname' => (
-  is => 'ro', 
+  is       => 'ro',
   required => 1,
 );
 
 has 'domain' => (
-  is => 'ro', 
-  default  => 'udp/ipv4',
+  is      => 'ro',
+  default => 'udp/ipv4',
 );
 
 has 'community' => (
-  is => 'ro', 
+  is      => 'ro',
   default => 'public',
 );
 
@@ -132,6 +77,72 @@ has 'session' => (
   writer   => '_session',
   lazy     => 1,
   builder  => '_build_session',
+);
+
+has 'if_status' => (
+  is        => 'ro',
+  isa       => 'HashRef',
+  init_args => undef,
+  # From IF-MIB
+  default => sub {
+    {
+      '1' => "up",
+      '2' => "down",
+      '3' => "testing",
+      '4' => "unknown",
+      '5' => "dormant",
+      '6' => "notPresent",
+      '7' => "lowerLayerDown",
+    };
+  },
+);
+
+has 'vc_status' => (
+  is        => 'ro',
+  isa       => 'HashRef',
+  init_args => undef,
+  # From PW-TC-STD-MIB
+  default => sub {
+    {
+      '1' => "up",
+      '2' => "down",
+      '3' => "testing",
+      '4' => "dormant",
+      '5' => "notPresent",
+      '6' => "lowerLayerDown",
+    };
+  },
+);
+
+has 'ip_status' => (
+  is        => 'ro',
+  isa       => 'HashRef',
+  init_args => undef,
+  # From IP-MIB
+  default => sub {
+    {
+      '1' => "up",
+      '2' => "down",
+    };
+  },
+);
+
+has 'if_types' => (
+  is        => 'ro',
+  isa       => 'ArrayRef',
+  init_args => undef,
+  # From IANAifTypeMIB
+  default => sub {
+    [
+      6,      # ethernetCsmacd, all ethernet-like interfaces, as per RFC3635
+      24,     # softwareLoopback
+      39,     # sonet, SONET or SDH
+      131,    # tunnel, Encapsulation interface
+      150,    # mplsTunnel, MPLS Tunnel Virtual Interface
+      161,    # ieee8023adLag, IEEE 802.3ad Link Aggregate
+      166,    # mpls
+    ];
+  },
 );
 
 #---
@@ -154,7 +165,8 @@ sub _build_session {
 
 #---
 
-sub _chr2str {
+sub chr2str {
+  my $self = shift;
 
   # get char by char
   my @a = split(/\./, shift);
@@ -162,10 +174,8 @@ sub _chr2str {
   # first entry is length. we don't need that
   shift @a;
 
-  my $str = '';
-  foreach (@a) {
-    $str .= chr($_);
-  }
+  my $str;
+  map { $str .= chr($_) } @a;
 
   return $str;
 }
@@ -173,8 +183,8 @@ sub _chr2str {
 #---
 
 # convert a numeric ip-address to dotted decimal
-sub _ip2dot {
-  my ($ip) = @_;
+sub ip2dot {
+  my ($self, $ip) = @_;
   my ($b1, $b2, $b3, $b4);
 
   # got a hex string? if so, get a 10base value
@@ -194,8 +204,29 @@ sub _ip2dot {
 
 #---
 
+sub _strip_oid {
+  my ($self, $baseoid, $href) = @_;
+
+  # nothing to do on an empty data set
+  return unless $href;
+
+  # sanity checks
+  croak "No baseoid" unless $baseoid;
+  croak "SNMP data isn't a hashref" unless ref($href) eq 'HASH';
+
+  my $result = undef;
+  foreach my $k (keys %{$href}) {
+    my ($index) = ($k =~ m{ $baseoid \. (.*) }xms);
+    $result->{$index} = $href->{$k} if $index;
+  }
+
+  return $result;
+}
+
+#---
+
 sub close {
-  my $self = shift;
+  my ($self) = @_;
 
   $self->session->close() if $self->session;
   return;
@@ -206,19 +237,12 @@ sub close {
 sub walk {
   my ($self, $oid) = @_;
 
-  # sanity check
-  return unless $self->session && $oid;
+  # sanity checks
+  croak "No SNMP session" unless $self->session;
+  croak "No oid" unless $oid;
 
   my $href = $self->session->get_table(-baseoid => $oid);
-  return unless $href;
-
-  my $result = undef;
-  foreach my $k (keys %{$href}) {
-    my ($index) = ($k =~ m!$oid\.(.*)!);
-    $result->{$index} = $href->{$k} if (defined $index);
-  }
-
-  return $result;
+  return $self->_strip_oid($oid, $href);
 }
 
 #---
@@ -226,12 +250,11 @@ sub walk {
 sub get {
   my ($self, $oid) = @_;
 
-  # sanity check
-  return unless $self->session && $oid;
+  # sanity checka
+  croak "No SNMP session" unless $self->session;
+  croak "No oid" unless $oid;
 
-  my @oids = ($oid);
-
-  my $href = $self->session->get_request(-varbindlist => \@oids);
+  my $href = $self->session->get_request(-varbindlist => [$oid]);
   return if (!defined($href) || $href->{$oid} eq 'noSuchObject');
 
   return $href->{$oid} || undef;
@@ -239,64 +262,89 @@ sub get {
 
 #---
 
-sub sysdescr {
-  my ($self) = @_;
-  return $self->get($oid{sysDescr});
+sub get_columns {
+  my ($self, $baseoid, @columns) = @_;
+
+  # sanity checks
+  croak "No SNMP session" unless $self->session;
+  croak "No baseoid"      unless $baseoid;
+  croak "No columns"      unless @columns;
+
+  my @oids = map { $baseoid . "." . $_ } @columns;
+
+  my $href = $self->session->get_entries(-columns => \@oids);
+  return $self->_strip_oid($baseoid, $href);
 }
 
 #---
 
-sub interfaces {
-  my ($self, $db) = @_;
-  my (%mib);
+sub sysdescr {
+  my ($self) = @_;
+  return $self->get($oid->{sysDescr});
+}
+
+#---
+
+sub interface {
+  my ($self, $cb, $mib) = @_;
+
+  # sanity checks
+  croak "No SNMP session"           unless $self->session;
+  croak "No callback"               unless $cb;
+  croak "Callback isn't a code ref" unless ref($cb) eq 'CODE';
+
+  # use standard mib if not given
+  $mib ||= $oid->{'interface'};
+
+  my $href;
 
   # walk all mib trees
-  foreach my $k (keys %{$oid{'interface'}}) {
-    $mib{$k} = $self->walk($oid{'interface'}{$k});
+  foreach my $k (keys %{$mib}) {
+    $href->{$k} = $self->walk($mib->{$k});
   }
 
-  return $AUDIT_NODATA unless %mib;
+  return unless $href;
 
   # gather the information based on ifIndex
-  foreach my $i (keys %{$mib{'ifIndex'}}) {
+  foreach my $i (keys %{$href->{'ifIndex'}}) {
     # we are only interested in interfaces having a ifType
-    # matching an item in the @ifTypes list
-    next unless scalar grep { $_ == $mib{'ifType'}{$i} } @ifTypes;
+    # matching an item in the if_types list
+    next unless grep { $_ == $href->{'ifType'}->{$i} } @{$self->if_types};
 
-    my $v6status = $mib{'ipv6InterfaceEnableStatus'}{$i} || "";
-    $db->insert(
-      'interface',
-      {
-        descr       => $mib{'ifDescr'}{$i},
-        mtu         => $mib{'ifMtu'}{$i},
-        adminstatus => $ifOperStatus{$mib{'ifAdminStatus'}{$i}},
-        operstatus  => $ifOperStatus{$mib{'ifOperStatus'}{$i}},
+    my $v6status = $href->{'ipv6InterfaceEnableStatus'}->{$i} || "";
 
-        #		  ipv4status  => $ipEnableStatus { $v6status },
-        ipv6status => $ipEnableStatus{$v6status},
-        speed      => $mib{'ifHighSpeed'}{$i},
-      });
+    # call callback with our data
+    &$cb({
+      descr       => $href->{'ifDescr'}->{$i},
+      mtu         => $href->{'ifMtu'}->{$i},
+      adminstatus => $self->if_status->{$href->{'ifAdminStatus'}->{$i}},
+      operstatus  => $self->if_status->{$href->{'ifOperStatus'}->{$i}},
+
+      #	ipv4status  => $ipEnableStatus { $v6status },
+      ipv6status => $self->ip_status->{$v6status},
+      speed      => $href->{'ifHighSpeed'}->{$i},
+    });
   }
-  return $AUDIT_OK;
+
+  return 1;
 }
 
 #---
 
 sub pwe3 {
-  my ($self, $db) = @_;
+  my ($self, $cb, $mib) = @_;
 
-  my $mib  = 'stdPW';
-  my $href = $self->walk($oid{$mib}{'ID'});
-  if (!$href) {
-    # error, std mib isn't supported
-    # try cisco mib
-    $mib  = 'ciscoPW';
-    $href = $self->walk($oid{$mib}{'ID'});
+  # sanity checks
+  croak "No SNMP session"           unless $self->session;
+  croak "No callback"               unless $cb;
+  croak "Callback isn't a code ref" unless ref($cb) eq 'CODE';
 
-    # if neither standard nor cisco mib exists, we have little
-    # else to do than return
-    return $AUDIT_NODATA unless $href;
-  }
+  # set default mib
+  $mib ||= $oid->{'pwe3'};
+
+  # walk the ID part of the tree
+  my $href = $self->walk($mib->{'ID'});
+  return unless $href;
 
   # we need to index things by the VCid (don't trust the SNMP index
   # being deterministic)
@@ -305,63 +353,57 @@ sub pwe3 {
     $index{$href->{$_}} = $_;
   }
 
-  my @array;
-
   foreach my $vcid (keys %index) {
     my ($i, $ifname, $status, $peer);
     $i      = $index{$vcid};
-    $ifname = $self->get($oid{$mib}{'Name'} . ".$i");
-    $status = $self->get($oid{$mib}{'OperStatus'} . ".$i");
-    $peer   = $self->get($oid{$mib}{'PeerAddr'} . ".$i");
-    $peer   = _ip2dot($peer);
+    $ifname = $self->get($mib->{'Name'} . ".$i");
+    $status = $self->get($mib->{'OperStatus'} . ".$i");
+    $peer   = $self->get($mib->{'PeerAddr'} . ".$i");
+    $peer   = $self->ip2dot($peer);
+    $peer   = gethostname($peer);
 
-    $db->insert(
-      'pwe3',
-      {
-        peer      => $peer,
-        interface => $ifname,
-        status    => $VcOperStatus{$status},
-      });
+    &$cb({
+      peer      => $peer,
+      interface => $ifname,
+      status    => $self->vc_status->{$status},
+    });
   }
 
-  return $AUDIT_OK;
+  return 1;
 }
 
 #---
 
-sub vrfs {
-  my ($self, $db) = @_;
-  my ($vrfs_active, $vrfs_assoc, @array);
+sub vrf {
+  my ($self, $cb, $mib) = @_;
 
-  # there are two MIB trees get data from, one standardized
-  # and one cisco proprietary.
-  my $mib = 'stdVPN';
-  if (!$self->get($oid{$mib}{'ConfiguredVrfs'})) {
-    # error, std mib isn't supported
-    # try cisco mib
-    $mib = 'ciscoVPN';
+  # sanity checks
+  croak "No SNMP session"           unless $self->session;
+  croak "No callback"               unless $cb;
+  croak "Callback isn't a code ref" unless ref($cb) eq 'CODE';
 
-    # if neither standard nor cisco mib exists, we have little
-    # else to do than return
-    return $AUDIT_NODATA unless $self->get($oid{$mib}{'ConfiguredVrfs'});
-  }
+  # set default mib
+  $mib ||= $oid->{'vrf'};
 
-  $vrfs_active = $self->walk($oid{$mib}{'ActiveInterfaces'});
-  $vrfs_assoc  = $self->walk($oid{$mib}{'AssociatedInterfaces'});
+  my $vrfs_active = $self->walk($mib->{'ActiveInterfaces'});
+  return unless $vrfs_active;
+
+  my $vrfs_assoc = $self->walk($mib->{'AssociatedInterfaces'});
 
   foreach my $k (keys %{$vrfs_active}) {
-    $db->insert(
-      'vrf',
-      {
-        vrf        => _chr2str($k),
-        active     => $vrfs_active->{$k} || 0,
-        associated => $vrfs_assoc->{$k} || 0,
-      });
+    &$cb({
+      vrf        => $self->chr2str($k),
+      active     => $vrfs_active->{$k} || 0,
+      associated => $vrfs_assoc->{$k}  || 0,
+    });
   }
-  return $AUDIT_OK;
+
+  return 1;
 }
 
 #---
+
+__PACKAGE__->meta->make_immutable;
 
 1;
 

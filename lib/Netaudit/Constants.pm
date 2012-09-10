@@ -13,18 +13,30 @@ use warnings;
 use Readonly;
 
 use base qw{ Exporter };
-our @EXPORT = qw{ 
-  $VERSION 
-  $AUDIT_OK 
-  $AUDIT_NODATA 
-  $AUDIT_FAIL 
+our @EXPORT = qw{
+  $VERSION
+  $AUDIT_OK
+  $AUDIT_NODATA
+  $AUDIT_FAIL
+  $HOSTNAME
 };
 
-our $VERSION = 1.05;
+our $VERSION = 1.1;
 
 # Success/failure codes for all audit subs
-Readonly my $AUDIT_FAIL   => 0;
-Readonly my $AUDIT_OK     => 1;
-Readonly my $AUDIT_NODATA => 2;
+Readonly our $AUDIT_FAIL   => 0;
+Readonly our $AUDIT_OK     => 1;
+Readonly our $AUDIT_NODATA => 2;
+
+# A generic representaion of a hostname
+Readonly our $HOSTNAME => qr/
+  (?:
+    \p{Alnum}+ - \p{Alnum}+ - \p{Alnum}+   # BaneTele model
+    |
+    \p{Alnum}+ \. \p{Alnum}+               # Catch model
+    |
+    \p{Alnum}+                             # Labben model
+  )
+/xms;
 
 1;

@@ -17,29 +17,31 @@ use Readonly;
 Readonly my $SCHEMA_VER => 1;
 
 has 'database' => (
-  is => 'rw', 
+  is       => 'rw',
+  isa      => 'Str',
   required => 1,
 );
 
 has 'schema' => (
-  is => 'rw', 
+  is      => 'rw',
   default => undef,
 );
 
 has 'hostname' => (
   is => 'rw',
+  isa => 'Str',
 );
 
 has 'run' => (
-  is => 'ro', 
-  init_arg => undef, 
-  writer => '_run',
+  is       => 'ro',
+  init_arg => undef,
+  writer   => '_run',
 );
 
 has 'dbh' => (
-  is => 'ro', 
-  init_arg => undef, 
-  writer => '_dbh',
+  is       => 'ro',
+  init_arg => undef,
+  writer   => '_dbh',
 );
 
 #---
@@ -134,8 +136,8 @@ sub newrun {
 sub insert {
   my ($self, $table, $href) = @_;
 
-  croak("No database connection")
-    unless $self->dbh;
+  # sanity check
+  croak "No database connection" unless $self->dbh;
 
   # add run + hostname to the hash
   $href->{run}      = $self->run;
@@ -189,7 +191,7 @@ sub select_column {
   my ($self, $stmt, @args) = @_;
 
   my $aref = $self->dbh->selectcol_arrayref($stmt, {}, @args);
-  croak "select failed: $self->dbh->errstr" 
+  croak "select failed: $self->dbh->errstr"
     if $self->dbh->errstr;
   return $aref ? @{$aref} : undef;
 }
@@ -220,5 +222,9 @@ sub gethosts {
 
   return map { $$_[0] } @{$aref};
 }
+
+#---
+
+__PACKAGE__->meta->make_immutable;
 
 1;
