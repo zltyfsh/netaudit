@@ -93,7 +93,7 @@ has 'if_status' => (
       '5' => "dormant",
       '6' => "notPresent",
       '7' => "lowerLayerDown",
-    };
+    }
   },
 );
 
@@ -110,7 +110,7 @@ has 'vc_status' => (
       '4' => "dormant",
       '5' => "notPresent",
       '6' => "lowerLayerDown",
-    };
+    }
   },
 );
 
@@ -123,7 +123,7 @@ has 'ip_status' => (
     {
       '1' => "up",
       '2' => "down",
-    };
+    }
   },
 );
 
@@ -141,7 +141,7 @@ has 'if_types' => (
       150,    # mplsTunnel, MPLS Tunnel Virtual Interface
       161,    # ieee8023adLag, IEEE 802.3ad Link Aggregate
       166,    # mpls
-    ];
+    ]
   },
 );
 

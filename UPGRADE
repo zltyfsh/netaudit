@@ -1,2 +1,9 @@
-This file will contain upgrade instructions when
-moving from one version of the database to another.
+netaudit version 2.0 introduce two changes in database storage:
+
+1) In isis_topology, LSP-id's are now stripped from "host" on all platforms
+
+2) In pwe3, the "peer" IP-address is resolved to a hostname
+
+Both changes leads to false positivs when running netreport in "compare"
+mode. The distribution includes a script share/upgrade10-20 which converts
+old formats to the now ones.

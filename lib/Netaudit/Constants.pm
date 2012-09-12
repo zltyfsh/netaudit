@@ -21,7 +21,7 @@ our @EXPORT = qw{
   $HOSTNAME
 };
 
-our $VERSION = 1.1;
+our $VERSION = 2.0;
 
 # Success/failure codes for all audit subs
 Readonly our $AUDIT_FAIL   => 0;

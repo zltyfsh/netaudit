@@ -23,8 +23,6 @@ use Text::Table;
 use IO::Prompt;
 use Algorithm::Diff;
 use Readonly;
-use Text::Aligner;
-use Term::ANSIColor;
 
 our $VERSION = $Netaudit::Constants::VERSION;
 
@@ -111,11 +109,20 @@ my $dbfile = $opts{database} || $DATABASE;
 my $db = eval { Netaudit::Db->new(database => $dbfile) };
 die $@ if $@;
 
-# we can't colorize if too old modules
-if ($Term::ANSIColor::VERSION lt '2.01' || $Text::Aligner::VERSION lt '0.06') {
-  # then we can't use colors
-  $opts{colors} = 0;
-}
+# try to load our recommended modules
+# and check if the minimum version requirement
+# are met
+eval {
+  require Term::ANSIColor;
+  Term::ANSIColor->import();
+  die unless $Term::ANSIColor::VERSION ge '2.01';
+} or $opts{colors} = 0; 
+
+eval {
+  require Text::Aligner;
+  Text::Aligner->import();
+  die unless $Text::Aligner::VERSION ge '0.06';
+} or $opts{colors} = 0; 
 
 # Check which mode we are in
 if (exists $opts{list}) {

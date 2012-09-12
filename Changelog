@@ -1,6 +1,6 @@
-2012-09-11  Per Carlson <pelle@lab.as2116.net>
+2012-09-11  Per Carlson <pelle@hemmop.com>
 
-	* Release 1.1
+	* Release 2.0
 
 	* Changes summary:
 	- Added support for Juniper JnxVpnMib for auditing l2Circuits
