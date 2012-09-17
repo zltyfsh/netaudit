@@ -1,3 +1,21 @@
+netaudit (2.0-1) unstable; urgency=low
+
+  * New upstream
+  * Updated dependencies in debian/control
+    - removed libterm-ansicolor-perl from Depends
+    - removed libtext-aligner-perl from Depends
+    - lowered debhelper to 7
+  * Added "share/upgrade-10-20" to debian/netaudit.install
+  * Added "UPGRADE" to debian/netaudit.docs
+
+ -- Per Carlson <pelle@hemmop.com>  Mon, 17 Sep 2012 14:46:02 +0200
+
+netaudit (1.05.1-1) unstable; urgency=low
+
+  * New upstream
+
+ -- Per Carlson <pelle@hemmop.com>  Sun, 20 May 2012 21:27:03 +0200
+
 netaudit (1.05-1) unstable; urgency=low
 
   * New upstream 

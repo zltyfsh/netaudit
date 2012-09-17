@@ -1,1 +1,2 @@
 share/schema.sql	usr/share/netaudit/
+share/upgrade10-20      usr/share/netaudit/

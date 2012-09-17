@@ -2,7 +2,7 @@ Source: netaudit
 Section: net
 Priority: optional
 Maintainer: Per Carlson <pelle@hemmop.com>
-Build-Depends: debhelper (>= 8),
+Build-Depends: debhelper (>= 7),
  perl
 Build-Depends-Indep: libalgorithm-diff-perl,
  libconfig-simple-perl,
@@ -16,9 +16,7 @@ Build-Depends-Indep: libalgorithm-diff-perl,
  libregexp-common-perl,
  libregexp-ipv6-perl,
  libtext-table-perl, 
- libreadonly-perl, 
- libtext-aligner-perl, 
- libterm-ansicolor-perl
+ libreadonly-perl 
 Standards-Version: 3.9.3
 Vcs-Browser: https://github.com/hemmop/netaudit
 Vcs-Git: git://github.com/hemmop/netaudit.git
@@ -38,9 +36,7 @@ Depends: ${misc:Depends}, ${perl:Depends},
  libregexp-common-perl,
  libregexp-ipv6-perl,
  libtext-table-perl, 
- libreadonly-perl, 
- libtext-aligner-perl, 
- libterm-ansicolor-perl
+ libreadonly-perl 
 Recommends: libterm-ansicolor-perl (>= 2.01) | perl (>= 5.11.0), 
  libtext-aligner-perl (>= 0.07)
 Description: Scripts for doing network audits of routers
