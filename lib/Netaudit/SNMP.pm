@@ -15,7 +15,7 @@ use Carp;
 use Netaudit::Constants;
 use Netaudit::DNS;
 
-# SNMP OIDs
+# SNMP OIDs and values
 
 my $oid = {
   # from SNMPv2 MIB
@@ -53,6 +53,45 @@ my $oid = {
   },
 };
 
+# From IF-MIB
+my $if_status = {
+  '1' => "up",
+  '2' => "down",
+  '3' => "testing",
+  '4' => "unknown",
+  '5' => "dormant",
+  '6' => "notPresent",
+  '7' => "lowerLayerDown",
+};
+
+
+# From PW-TC-STD-MIB
+my $vc_status = {
+  '1' => "up",
+  '2' => "down",
+  '3' => "testing",
+  '4' => "dormant",
+  '5' => "notPresent",
+  '6' => "lowerLayerDown",
+};
+
+# From IP-MIB
+my $ip_status = {
+  '1' => "up",
+  '2' => "down",
+};
+
+# From IANAifTypeMIB
+my $if_types = [
+  6,      # ethernetCsmacd, all ethernet-like interfaces, as per RFC3635
+  24,     # softwareLoopback
+  39,     # sonet, SONET or SDH
+  131,    # tunnel, Encapsulation interface
+  150,    # mplsTunnel, MPLS Tunnel Virtual Interface
+  161,    # ieee8023adLag, IEEE 802.3ad Link Aggregate
+  166,    # mpls
+];
+
 #-- Attributes
 
 has 'hostname' => (
@@ -77,72 +116,6 @@ has 'session' => (
   writer   => '_session',
   lazy     => 1,
   builder  => '_build_session',
-);
-
-has 'if_status' => (
-  is        => 'ro',
-  isa       => 'HashRef',
-  init_args => undef,
-  # From IF-MIB
-  default => sub {
-    {
-      '1' => "up",
-      '2' => "down",
-      '3' => "testing",
-      '4' => "unknown",
-      '5' => "dormant",
-      '6' => "notPresent",
-      '7' => "lowerLayerDown",
-    }
-  },
-);
-
-has 'vc_status' => (
-  is        => 'ro',
-  isa       => 'HashRef',
-  init_args => undef,
-  # From PW-TC-STD-MIB
-  default => sub {
-    {
-      '1' => "up",
-      '2' => "down",
-      '3' => "testing",
-      '4' => "dormant",
-      '5' => "notPresent",
-      '6' => "lowerLayerDown",
-    }
-  },
-);
-
-has 'ip_status' => (
-  is        => 'ro',
-  isa       => 'HashRef',
-  init_args => undef,
-  # From IP-MIB
-  default => sub {
-    {
-      '1' => "up",
-      '2' => "down",
-    }
-  },
-);
-
-has 'if_types' => (
-  is        => 'ro',
-  isa       => 'ArrayRef',
-  init_args => undef,
-  # From IANAifTypeMIB
-  default => sub {
-    [
-      6,      # ethernetCsmacd, all ethernet-like interfaces, as per RFC3635
-      24,     # softwareLoopback
-      39,     # sonet, SONET or SDH
-      131,    # tunnel, Encapsulation interface
-      150,    # mplsTunnel, MPLS Tunnel Virtual Interface
-      161,    # ieee8023adLag, IEEE 802.3ad Link Aggregate
-      166,    # mpls
-    ]
-  },
 );
 
 #---
@@ -309,7 +282,7 @@ sub interface {
   foreach my $i (keys %{$href->{'ifIndex'}}) {
     # we are only interested in interfaces having a ifType
     # matching an item in the if_types list
-    next unless grep { $_ == $href->{'ifType'}->{$i} } @{$self->if_types};
+    next unless grep { $_ == $href->{'ifType'}->{$i} } @{$if_types};
 
     my $v6status = $href->{'ipv6InterfaceEnableStatus'}->{$i} || "";
 
@@ -317,11 +290,11 @@ sub interface {
     &$cb({
       descr       => $href->{'ifDescr'}->{$i},
       mtu         => $href->{'ifMtu'}->{$i},
-      adminstatus => $self->if_status->{$href->{'ifAdminStatus'}->{$i}},
-      operstatus  => $self->if_status->{$href->{'ifOperStatus'}->{$i}},
+      adminstatus => $if_status->{$href->{'ifAdminStatus'}->{$i}},
+      operstatus  => $if_status->{$href->{'ifOperStatus'}->{$i}},
 
       #	ipv4status  => $ipEnableStatus { $v6status },
-      ipv6status => $self->ip_status->{$v6status},
+      ipv6status => $ip_status->{$v6status},
       speed      => $href->{'ifHighSpeed'}->{$i},
     });
   }
@@ -365,7 +338,7 @@ sub pwe3 {
     &$cb({
       peer      => $peer,
       interface => $ifname,
-      status    => $self->vc_status->{$status},
+      status    => $vc_status->{$status},
     });
   }
 
