@@ -28,15 +28,16 @@ my $build = Module::Build->new
 		'Algorithm::Diff' => 0,
 		'Config::Simple' => 0,
 		'Readonly' => 0, 
-		'Text::Aligner' => 0,
-		'Term::ANSIColor' => 0,
    },
    recommends => {
 		# having those enables colored output
 		'Text::Aligner' => '0.06',  
 		'Term::ANSIColor' => '2.01',
    },
-   share_files => { 'share/schema.sql' => 'share/schema.sql' },
+   share_files => { 
+     'share/schema.sql' => 'share/schema.sql',
+     'share/upgrade10-20' => 'share/upgrade10-20',
+   },
    doc_files   => { map( ($_ => catfile('doc', $_) ), qw[ TODO INSTALL UPGRADE ]) },
  );
 

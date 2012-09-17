@@ -1,8 +1,8 @@
 #
 # Copyright (c) 2012, Per Carlson
 #
-# This program is free software; you can redistribute it and/or 
-# modify it under the same terms as Perl 5.14. For more details, 
+# This program is free software; you can redistribute it and/or
+# modify it under the same terms as Perl 5.14. For more details,
 # see the full text of the licenses in the directory LICENSES.
 #
 
@@ -13,13 +13,30 @@ use warnings;
 use Readonly;
 
 use base qw{ Exporter };
-our @EXPORT = qw{ $VERSION $AUDIT_OK $AUDIT_NODATA $AUDIT_FAIL $SCHEMA_VER };
+our @EXPORT = qw{
+  $VERSION
+  $AUDIT_OK
+  $AUDIT_NODATA
+  $AUDIT_FAIL
+  $HOSTNAME
+};
 
-our $VERSION = 1.05;
+our $VERSION = 2.0;
 
 # Success/failure codes for all audit subs
-Readonly my $AUDIT_FAIL   => 0;
-Readonly my $AUDIT_OK     => 1;
-Readonly my $AUDIT_NODATA => 2;
+Readonly our $AUDIT_FAIL   => 0;
+Readonly our $AUDIT_OK     => 1;
+Readonly our $AUDIT_NODATA => 2;
+
+# A generic representaion of a hostname
+Readonly our $HOSTNAME => qr/
+  (?:
+    \p{Alnum}+ - \p{Alnum}+ - \p{Alnum}+   # BaneTele model
+    |
+    \p{Alnum}+ \. \p{Alnum}+               # Catch model
+    |
+    \p{Alnum}+                             # Labben model
+  )
+/xms;
 
 1;

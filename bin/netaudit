@@ -2,8 +2,8 @@
 #
 # Copyright (c) 2012, Per Carlson
 #
-# This program is free software; you can redistribute it and/or 
-# modify it under the same terms as Perl 5.14. For more details, 
+# This program is free software; you can redistribute it and/or
+# modify it under the same terms as Perl 5.14. For more details,
 # see the full text of the licenses in the directory LICENSES.
 #
 
@@ -30,59 +30,66 @@ use Netaudit::Db;
 
 # config hash
 my %config;
-GetOptions(\%config, 'help|?!', 'man!', 'database|d=s', 'community=s',
-    'configfile|c=s', 'username|u=s')
-  or pod2usage(2);
+GetOptions(
+  \%config, 
+  'help|?!', 
+  'man!', 
+  'database|d=s', 
+  'community=s',
+  'configfile|c=s', 
+  'username|u=s'
+) or pod2usage(2);
 pod2usage(1) if $config{help};
-pod2usage( -exitstatus => 0, -verbose => 2 ) if $config{man};
+pod2usage(-exitstatus => 0, -verbose => 2) if $config{man};
 
 # set some early defaults
 $config{configfile} ||= "./netaudit.conf";
 
-if ( -r $config{configfile} ) {
-    my $cfg = Config::Simple->new($config{configfile})
-      or die sprintf "Reading config file %s failed: %s\n",
+if (-r $config{configfile}) {
+  my $cfg = Config::Simple->new($config{configfile})
+    or die sprintf "Reading config file %s failed: %s\n",
       $config{configfile}, Config::Simple->error();
 
-    # get parameters from cli first, then config file
-    $config{database}  = $config{database}  || $cfg->param('database');
-    $config{community} = $config{community} || $cfg->param('community');
-    $config{range}     = [ $cfg->param('range') ];
+  # get parameters from cli first, then config file
+  $config{database}  = $config{database}  || $cfg->param('database');
+  $config{community} = $config{community} || $cfg->param('community');
+  $config{range}     = [$cfg->param('range')];
 
-    # this are undocumented options to make development easier
-    $config{schema} = $cfg->param('schema');
-    $config{development} = $cfg->param('development');
+  # this are undocumented options to make development easier
+  $config{schema}      = $cfg->param('schema');
+  $config{development} = $cfg->param('development');
 
-    # if username set on cli, do not use password from config file
-    if ( ! $config{username} ) {
-        $config{username} = $cfg->param('username');
+  # if username set on cli, do not use password from config file
+  if (!$config{username}) {
+    $config{username} = $cfg->param('username');
 
-        # if password is set in config file it *must* have file mode x00, ie
-        # only be readable by the user
-        if ($cfg->param('password')) {
-            my $st = stat($config{configfile});
-            die "Password set in config file, but file is group/world readable\n"
-                if $st->mode & 044;
-            $config{password} = $cfg->param('password');
-        }
+    # if password is set in config file it *must* have file mode x00, ie
+    # only be readable by the user
+    if ($cfg->param('password')) {
+      my $st = stat($config{configfile});
+      die "Password set in config file, but file is group/world readable\n"
+        if $st->mode & 044;
+      $config{password} = $cfg->param('password');
     }
-    else {
-        # unset password to trigger prompt
-        $config{password} = "";
-    }
+  }
+  else {
+    # unset password to trigger prompt
+    $config{password} = "";
+  }
 }
 
 # set defaults for everything not already set
 $config{username}  ||= "netaudit";
 $config{database}  ||= "./netaudit.db";
 $config{community} ||= "public";
-$config{schema} ||= catfile( $FindBin::Bin, '../share/netaudit', 'schema.sql' );
+$config{schema} ||= catfile($FindBin::Bin, '../share/netaudit', 'schema.sql');
 
 unless ($config{password}) {
-    # get password from terminal
-    $config{password} = prompt "Enter the password for user \"$config{username}\": ",
-        -echo => '*',
-        -tty;
+  # get password from terminal
+  $config{password} =
+    prompt "Enter the password for user \"$config{username}\": ",
+    -echo => '*',
+    -tty;
 }
 
 # a list of the hosts to loop over
@@ -90,35 +97,35 @@ my @hosts;
 
 # if we have got no hosts/ip on the but a range, push the range
 # it on to the command argument list
-push( @ARGV, split( /,/, join( ",", @{ $config{range} } ) ) )
-  if ( !@ARGV && exists $config{range} );
+push(@ARGV, split(/,/, join(",", @{$config{range}})))
+  if (!@ARGV && exists $config{range});
 
 # loop over each host or range on command line
 foreach my $arg (@ARGV) {
-    # is this a hostname, or IP-range?
-    given ($arg) {
-        # IPv4-range
-        when (/$RE{net}{IPv4}/) {
-            my $na = NetAddr::IP->new($arg)
-              or die "Cannot parse IPv4-range $arg\n";
+  # is this a hostname, or IP-range?
+  for ($arg) {
+    # IPv4-range
+    when (/$RE{net}{IPv4}/) {
+      my $na = NetAddr::IP->new($arg)
+        or die "Cannot parse IPv4-range $arg\n";
 
-            foreach my $ip ( @{ $na->hostenumref } ) {
-                my $aton = inet_aton( $ip->addr );
-                my $hostname = gethostbyaddr( $aton, AF_INET );
-                push( @hosts, $hostname ) if $hostname;
-            }
-        }
-
-        # treat it as a host
-        default {
-            # do a double DNS lookup (hostname -> ip -> hostname)
-            my $packed = gethostbyname($arg)
-              or die "Cannot resolve hostname \"$arg\"\n";
-            my $fqdn = gethostbyaddr( $packed, AF_INET )
-              or die "Cannot do double lookup of hostname \"$arg\"\n";
-            push( @hosts, $fqdn );
-        }
+      foreach my $ip (@{$na->hostenumref}) {
+        my $aton = inet_aton($ip->addr);
+        my $hostname = gethostbyaddr($aton, AF_INET);
+        push(@hosts, $hostname) if $hostname;
+      }
     }
+
+    # treat it as a host
+    default {
+      # do a double DNS lookup (hostname -> ip -> hostname)
+      my $packed = gethostbyname($arg)
+        or die "Cannot resolve hostname \"$arg\"\n";
+      my $fqdn = gethostbyaddr($packed, AF_INET)
+        or die "Cannot do double lookup of hostname \"$arg\"\n";
+      push(@hosts, $fqdn);
+    }
+  }
 }
 
 # we need atleast one host to work with
@@ -126,17 +133,16 @@ die "No valid host found in range or hostname\n" unless @hosts;
 
 # open database file
 my $db = eval {
-    Netaudit::Db->new(
-        'database' => $config{database},
-        'schema'   => $config{schema}
-    );
+  Netaudit::Db->new(
+    'database' => $config{database},
+    'schema'   => $config{schema});
 };
 die $@ if $@;
 $db->newrun;
 $config{db} = $db;
 
 foreach my $host (@hosts) {
-    Netaudit::Audit->run( $host, \%config );
+  Netaudit::Audit->run($host, \%config);
 }
 
 __DATA__

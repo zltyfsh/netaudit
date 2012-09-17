@@ -1,0 +1,67 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+use feature qw{ say };
+
+use DBI;
+use Regexp::Common;
+use Socket qw{ inet_aton AF_INET };
+
+my $database = shift @ARGV
+  or die "Usage: update <database>\n";
+
+my $db = DBI->connect("dbi:SQLite:dbname=" . $database)
+  or die "Cannot connect to database " . $DBI::errstr . "\n";
+
+# update isis_topology
+my $stmt = q/
+  UPDATE isis_topology
+  SET host = rtrim(host, '.0_')
+  WHERE host LIKE '%.0_'
+/;
+
+my $rv = $db->do($stmt)
+  or die $db->errstr . "\n";
+
+say "isis_topology: changed $rv records" if $rv > 0;
+
+# update pwe3 with hostnames
+$stmt = q/
+  SELECT DISTINCT peer
+  FROM pwe3
+/;
+
+my $aref = $db->selectcol_arrayref($stmt);
+
+$stmt = q/
+  UPDATE pwe3
+  SET peer = ?
+  WHERE peer = ?
+/;
+
+my $sth = $db->prepare($stmt);
+
+foreach my $oldpeer (@{$aref}) {
+  next unless $oldpeer =~ $RE{net}{IPv4};
+
+  my $newpeer = gethostname($oldpeer);
+  $sth->execute($newpeer, $oldpeer);
+
+  say "pwe3: updated $oldpeer to $newpeer";
+}
+
+say "done.";
+
+exit;
+
+
+sub gethostname {
+  my ($addr) = @_;
+
+  my $iaddr = inet_aton($addr);
+  my $name = gethostbyaddr($iaddr, AF_INET);
+
+  return defined $name ? $name : $addr;
+}
+

@@ -1,3 +1,33 @@
+2012-09-11  Per Carlson <pelle@hemmop.com>
+
+	* Release 2.0
+
+	* Changes summary:
+	- Added support for Juniper JnxVpnMib for auditing l2Circuits
+	- In the PWE3 audit, the peer IP-address is now resolved to hostname
+	- The plugin detector now longer detects ERXes as M/MX routers
+
+	* Other changes:
+	- N::SNMP do only handle IETF MIBs, all vendor specific code is handled 
+	  by the Plugin code.
+
+	- The screen scraping is cleaned up by creating RegExp 
+	  scalars which leads to much nicer for/when code segments. The
+	  downside is the split of RegExp and when to two distant places
+	  in the code.
+
+	- Harmonized the N::SNMP and N::Plugin::* sub names with the database 
+	  tables, i.e renamed interfaces -> interface, 
+	  isis_neighbours -> isis_neighbour.
+
+	- Centralized $HOSTNAME RegExp to N::Constants.
+
+1.05.1 -- 20120520
+	* bin/netreport: 
+	  - Added DISTINCT to runhosts and hostruns
+	  - Removed Data::Dumper::Simple cruft
+	  - Added --hosts and --runs to man page
+
 1.05 -- 20120520
 	* bin/netreport: 
 	  - Fixed interpretation of LIST
