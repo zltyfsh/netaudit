@@ -8,6 +8,40 @@
 
 package Netaudit::Db;
 
+=pod 
+
+=head1 NAME
+
+Netaudit::Db - SQLite3 datebase interaction
+
+=head1 SYNOPSIS
+
+  use Netaudit::Db;
+
+  my $dbh = Netaudit::Db->new(
+    database => 'my.db',
+    schema   => 'schema.sql',
+  );
+
+  $dbh->newrun;
+  $dbh->hostname('foo');
+
+  $dbh->insert('table', $href);
+
+  $dbh->disconnect;
+
+=head1 DESCRIPTION
+
+Netaudit::Db is mostly a wrapper around DBI to make selects a bit 
+easier.
+Probably this would be obtained even easier by using DBIx::Simple,
+but that's an opprotunity in future releases :-)
+
+Additionally there are some methods for inserting tailored data into
+the various tables, e.g C<newrun>, and C<insert>.
+
+=cut
+
 use Mouse;
 use Carp;
 use DBI;
@@ -16,21 +50,49 @@ use Readonly;
 
 Readonly my $SCHEMA_VER => 1;
 
+=head1 ATTRIBUTES
+
+=head2 C<database>
+
+The filename with the SQLite3 database.
+
+=cut
+
 has 'database' => (
   is       => 'rw',
   isa      => 'Str',
   required => 1,
 );
 
+
+=head2 C<schema>
+
+The schema to use when creating an empty database.
+
+=cut
+
 has 'schema' => (
   is      => 'rw',
   default => undef,
 );
 
+
+=head2 C<hostname>
+
+The hostname for which subsequent inserts are stored for.
+
+=cut
+
 has 'hostname' => (
   is => 'rw',
   isa => 'Str',
 );
+
+=head2 C<run>
+
+The current run for which database entries are stored at.
+
+=cut
 
 has 'run' => (
   is       => 'ro',
@@ -38,13 +100,35 @@ has 'run' => (
   writer   => '_run',
 );
 
+=head2 C<dbh>
+
+The handle to the database
+
+=cut
+
 has 'dbh' => (
   is       => 'ro',
   init_arg => undef,
   writer   => '_dbh',
 );
 
-#---
+
+=head1 METHODS
+
+=head2 C<new>
+
+  my $db = NetAudit::Db->new(
+    database  => 'my.db',
+    schema    => 'schema.sql'
+  );
+
+Connects to the SQLite database stored in C<database>.
+If the database doesn't exist, a new one is created by using the
+template in C<schema>.
+
+Returns a Netaudit::Db object on success, or dies on errors.
+
+=cut
 
 sub BUILD {
   my ($self) = @_;
@@ -102,7 +186,12 @@ sub BUILD {
   return;
 }
 
-#---
+
+=head2 C<disconnect>
+
+Close the database handle.
+
+=cut
 
 sub disconnect {
   my $self = shift;
@@ -112,7 +201,12 @@ sub disconnect {
   return;
 }
 
-#---
+
+=head2 C<newrun>
+
+Creates a new unique run in the database.
+
+=cut
 
 sub newrun {
   my ($self) = @_;
@@ -131,7 +225,13 @@ sub newrun {
   return;
 }
 
-#---
+
+=head2 C<insert>
+
+Inserts the columns from $href into database table $table,
+indexed by the current L<hostname> and L<run>.
+
+=cut
 
 sub insert {
   my ($self, $table, $href) = @_;
@@ -153,7 +253,12 @@ sub insert {
     or croak("Failed inserting a row: " . $self->dbh->errstr);
 }
 
-#---
+
+=head2 C<select_aref>
+
+  my $aref = $db->select_aref($smtmt, @args);
+
+=cut
 
 sub select_aref {
   my ($self, $stmt, @args) = @_;
@@ -169,7 +274,14 @@ sub select_aref {
   return $aref;
 }
 
-#---
+
+=head2 C<select_row>
+
+  my @row = $db->select_row($stmt, @args);
+
+Returns the first row matching C<$stmt>/C<@args>.
+
+=cut
 
 sub select_row {
   my ($self, $stmt, @args) = @_;
@@ -185,7 +297,15 @@ sub select_row {
   return @row;
 }
 
-#---
+
+=head2 C<select_column>
+
+  my @array = $db->select_column($stmt, @args);
+
+Returns the first column in the select statement
+C<$stmt>/C<@args>.
+
+=cut
 
 sub select_column {
   my ($self, $stmt, @args) = @_;
@@ -196,7 +316,15 @@ sub select_column {
   return $aref ? @{$aref} : undef;
 }
 
-#---
+
+=head2 C<dostmt>
+
+  $rows = $db->dostmt($stmt, @args);
+
+Executes a "do statement" and returns the number of
+affected rows. 
+
+=cut
 
 sub dostmt {
   my ($self, $stmt, @args) = @_;
@@ -210,7 +338,14 @@ sub dostmt {
   return $rows;
 }
 
-#---
+
+=head2 C<gethosts>
+
+  $aref = $db->gethosts(100);
+
+Returns all hostnames with stored data in a run.
+
+=cut
 
 sub gethosts {
   my ($self, $run) = @_;
@@ -223,7 +358,6 @@ sub gethosts {
   return map { $$_[0] } @{$aref};
 }
 
-#---
 
 __PACKAGE__->meta->make_immutable;
 

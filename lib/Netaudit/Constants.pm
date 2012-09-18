@@ -10,7 +10,8 @@ package Netaudit::Constants;
 
 use strict;
 use warnings;
-use Readonly;
+
+use version; our $VERSION = qv('2.0.2');
 
 use base qw{ Exporter };
 our @EXPORT = qw{
@@ -21,7 +22,7 @@ our @EXPORT = qw{
   $HOSTNAME
 };
 
-our $VERSION = 2.0;
+use Readonly;
 
 # Success/failure codes for all audit subs
 Readonly our $AUDIT_FAIL   => 0;
