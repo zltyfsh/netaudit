@@ -14,24 +14,26 @@ use feature 'switch';
 use FindBin;
 use lib "$FindBin::Bin/../lib/";
 use lib "$FindBin::Bin/../lib/perl5";
-use Netaudit::Db;
-use Netaudit::Constants;
 use Getopt::Long '2.32';    # enables auto_version
 use Pod::Usage;
 use POSIX qw{ strftime };
 use Text::Table;
 use IO::Prompt;
 use Algorithm::Diff;
-use Readonly;
 
+use Netaudit::Db;
+use Netaudit::Constants;
+use Netaudit::Config;
+
+# set version for getopt auto_version
 our $VERSION = $Netaudit::Constants::VERSION;
-
-Readonly my $DATABASE => './netaudit.db';
 
 # AoH of tables and their options
 # Note: When adding an table, Hostname MUST always be first column
-my @tables = (
-  {
+#
+# TODO: this should come from the database
+#
+my @tables = ({
     table   => 'route_summary',
     descr   => 'Global routing summary',
     columns => 'Hostname,AFI,Connected,Static,Local,ISIS,BGP',
@@ -81,32 +83,34 @@ my @tables = (
   });
 
 # options
-my %opts;
-$opts{colors} = 1;
+my %opts = (
+  colors => -t STDIN && -t STDOUT,    # no colors if not interactive
+  configfile => '',                   # make sure it exists
+);
 
 Getopt::Long::Configure("auto_version");
 
 GetOptions(
   \%opts,
-  'colors|C!',      # use colors in output
-  'compare|c:s',    # differential reporting from two runs
-  'database|d=s',
-  'full:0',         # full reporting of one run
+  'colors|C!',        # use colors in output
+  'configfile|c=s',
+  'diff|d:s',         # differential reporting from two runs
+  'full:0',           # full reporting of one run
   'help|?',
-  'hosts!',         # lists which runs each host is in
-  'isis:0',         # check if isis v4 and v6 have same topology
-  'list:i',         # list runs
+  'hosts!',           # lists which runs each host is in
+  'isis:0',           # check if isis v4 and v6 have same topology
+  'list:i',           # list runs
   'man',
-  'purge=s',        # purge runs
-  'runs!',          # lists which hosts in each run
+  'purge=s',          # purge runs
+  'runs!',            # lists which hosts in each run
 ) or pod2usage(2);
 pod2usage(1) if $opts{help};
 pod2usage(-exitval => 2, -verbose => 2) if $opts{man};
 
-my $dbfile = $opts{database} || $DATABASE;
-(-f $dbfile) or die "Cannot find database file $dbfile: $!\n";
+my $cfg = eval { Netaudit::Config->new(filename => $opts{configfile}) };
+die $@ if $@;
 
-my $db = eval { Netaudit::Db->new(database => $dbfile) };
+my $db = eval { Netaudit::Db->new(database => $cfg->database) };
 die $@ if $@;
 
 # try to load our recommended modules
@@ -116,13 +120,13 @@ eval {
   require Term::ANSIColor;
   Term::ANSIColor->import();
   die unless $Term::ANSIColor::VERSION ge '2.01';
-} or $opts{colors} = 0; 
+} or $opts{colors} = 0;
 
 eval {
   require Text::Aligner;
   Text::Aligner->import();
   die unless $Text::Aligner::VERSION ge '0.06';
-} or $opts{colors} = 0; 
+} or $opts{colors} = 0;
 
 # Check which mode we are in
 if (exists $opts{list}) {
@@ -149,8 +153,8 @@ elsif (exists $opts{full}) {
   fullreport($opts{full}, shift @ARGV);
 }
 
-elsif (exists $opts{compare}) {
-  diffreport($opts{compare}, shift @ARGV);
+elsif (exists $opts{diff}) {
+  diffreport($opts{diff}, shift @ARGV);
 }
 
 # if we end up here no operational mode is selected
@@ -232,7 +236,7 @@ sub fullreport {
     my $table = Text::Table->new(@colspec);
 
     my $lc_columns = lc $href->{columns};
-    my $stmt = qq/
+    my $stmt       = qq/
       SELECT $lc_columns
       FROM $href->{table} 
       WHERE 
@@ -331,7 +335,7 @@ sub diffreport {
     my $table = Text::Table->new(@colspec);
 
     my $lc_columns = lc $href->{columns};
-    my $stmt = qq/
+    my $stmt       = qq/
       SELECT $lc_columns
       FROM $href->{table}
       WHERE 
@@ -741,15 +745,33 @@ Only one mode can be chosen at a time.
 
 Enable colorized output.
 To disable colors use B<--no-colors>.
-This is used when running in compare/diff mode.
-If the application is run from (for example) cron, it's strongly
-recommended to NOT use colors.
-Default is ON.
+This is used when running in diff mode.
+Default is ON unless when run in a non-interactively enviroment
+(such from cron) where it's OFF.
 
-=item B<-d> F<filename> | B<--database>=F<filename>
+=item B<-c> F<filename> | B<--configfile>=F<filename>
 
-The database, created by netaudit, to report from.
-Default is F<./netaudit.db>
+The location of the configuration file to use.
+A config file is searched for in the following order:
+
+=over 2
+
+=item * B<--configfile> argument
+
+=item * F<netaudit.conf>
+
+=item * F<~/.netaudit>
+
+=item * F</usr/local/etc/netaudit.conf>
+
+=item * F</etc/netaudit.conf>
+
+=back
+
+Note that the B<first> found config file is used, there is B<NO>
+hierarchy of config files.
+
+The format of the config file is specified in L<netaudit(1)>
 
 =back
 
@@ -757,7 +779,7 @@ Default is F<./netaudit.db>
 
 =over
 
-=item B<-c> LIST | B<--compare>=LIST
+=item B<-d> LIST | B<--diff>=LIST
 
 Select which runs the report should be be based on.
 Default (if no LIST) is to show the difference between the

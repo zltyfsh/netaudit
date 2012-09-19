@@ -1,9 +1,13 @@
-netaudit version 2.0 introduce two changes in database storage:
+netaudit version 2.1 introduce two changes in database storage:
 
 1) In isis_topology, LSP-id's are now stripped from "host" on all platforms
 
 2) In pwe3, the "peer" IP-address is resolved to a hostname
 
-Both changes leads to false positivs when running netreport in "compare"
-mode. The distribution includes a script share/upgrade10-20 which converts
+Both changes leads to false positives when running netreport in "diff"
+mode. The distribution includes a script share/upgrade1.x-2.1 which converts
 old formats to the now ones.
+
+
+There is some changes in the command line arguments in netreport. See
+the man page for further information.

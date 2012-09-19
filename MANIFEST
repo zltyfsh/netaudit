@@ -4,17 +4,21 @@ Build.PL
 Changelog
 INSTALL
 lib/Netaudit/Audit.pm
+lib/Netaudit/Config.pm
 lib/Netaudit/Constants.pm
 lib/Netaudit/Db.pm
+lib/Netaudit/DNS.pm
+lib/Netaudit/Plugin/Base.pm
 lib/Netaudit/Plugin/IOS.pm
 lib/Netaudit/Plugin/JunOS.pm
 lib/Netaudit/Plugin/XR.pm
 lib/Netaudit/SNMP.pm
-LICENSES/gpl
 LICENSES/artistic
+LICENSES/gpl
 MANIFEST			This list of files
 MANIFEST.SKIP
 README
 share/schema.sql
+share/upgrade1.x-2.1
 TODO
 UPGRADE

@@ -9,22 +9,42 @@ use Regexp::Common;
 use Socket qw{ inet_aton AF_INET };
 
 my $database = shift @ARGV
-  or die "Usage: update <database>\n";
+  or die "Usage: upgrade1.x-2.1 <database>\n";
 
 my $db = DBI->connect("dbi:SQLite:dbname=" . $database)
   or die "Cannot connect to database " . $DBI::errstr . "\n";
 
+my ($stmt, $sth, $aref, $rows);
+
+# check schema version
+$stmt = q/
+  SELECT version
+  FROM db
+/;
+$aref = $db->selectrow_arrayref($stmt);
+die "Unknown database\n" unless $aref;
+die "The database is already upgraded\n" if $aref->[0] gt '1';
+
+# update schema version
+$stmt = q/
+  UPDATE db
+  SET version = 2
+  WHERE version = 1
+/;
+
+$rows = $db->do($stmt);
+
 # update isis_topology
-my $stmt = q/
+$stmt = q/
   UPDATE isis_topology
   SET host = rtrim(host, '.0_')
   WHERE host LIKE '%.0_'
 /;
 
-my $rv = $db->do($stmt)
+$rows = $db->do($stmt)
   or die $db->errstr . "\n";
 
-say "isis_topology: changed $rv records" if $rv > 0;
+say "isis_topology: changed $rows records" if $rows > 0;
 
 # update pwe3 with hostnames
 $stmt = q/
@@ -32,7 +52,7 @@ $stmt = q/
   FROM pwe3
 /;
 
-my $aref = $db->selectcol_arrayref($stmt);
+$aref = $db->selectcol_arrayref($stmt);
 
 $stmt = q/
   UPDATE pwe3
@@ -40,7 +60,7 @@ $stmt = q/
   WHERE peer = ?
 /;
 
-my $sth = $db->prepare($stmt);
+$sth = $db->prepare($stmt);
 
 foreach my $oldpeer (@{$aref}) {
   next unless $oldpeer =~ $RE{net}{IPv4};

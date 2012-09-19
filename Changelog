@@ -1,26 +1,69 @@
-2012-09-11  Per Carlson <pelle@hemmop.com>
+2.1 -- 2012-09-20
+	* bin/netaudit:
+	Moved config file code to new module Netaudit::Config
+	
+	* lib/Netaudit/Config:
+	The config file is now searched for in several places
 
-	* Release 2.0
+	* bin/netreport:
+	Common config file with bin/netaudit
+	Changed command arguments:
+	- database is removed
+	- compare|c is renamed to diff|d
+	- configfile|c is added
 
-	* Changes summary:
-	- Added support for Juniper JnxVpnMib for auditing l2Circuits
-	- In the PWE3 audit, the peer IP-address is now resolved to hostname
-	- The plugin detector now longer detects ERXes as M/MX routers
+	* share/schema.sql, lib/Netaudit/Db:
+	Bump schema version to 2
 
-	* Other changes:
+	* share/upgrade1.x-2.1:
+	Renamed from share/upgrade10-20
+	Added check of database version before upgrade
+	Added upgrade of schema version
+
+
+2.0.2 -- 2012-09-18
+	* lib/Netaudit/SNMP, lib/Netaudit/Db:
+	Added POD
+
+2.0.1 -- 2012-09-17
+	* lib/Netaudit/SNMP:
+	Having constant Mouse attributes were cumbersome. They are now 
+	regular globals.  
+
+2.0 -- 2012-09-12
+	* lib/NetAudit/SNMP, lib/Netaudit/Plugin/*:
 	- N::SNMP do only handle IETF MIBs, all vendor specific code is handled 
 	  by the Plugin code.
+	- Harmonized the N::SNMP and N::Plugin::* sub names with the database 
+	  tables, i.e renamed interfaces -> interface, 
+	  isis_neighbours -> isis_neighbour etc.
+	- In the PWE3 audit, the peer IP-address is now resolved to hostname
 
+	* lib/Netaudit/Plugin/*:
 	- The screen scraping is cleaned up by creating RegExp 
 	  scalars which leads to much nicer for/when code segments. The
 	  downside is the split of RegExp and when to two distant places
 	  in the code.
-
-	- Harmonized the N::SNMP and N::Plugin::* sub names with the database 
-	  tables, i.e renamed interfaces -> interface, 
-	  isis_neighbours -> isis_neighbour.
-
 	- Centralized $HOSTNAME RegExp to N::Constants.
+
+	* lib/Netaudit/Plugin/JunOS:
+	- Added support for Juniper JnxVpnMib for auditing l2Circuits
+	- The plugin detector now longer detects ERXes as M/MX routers
+	- LSP-id is removed from isis_topology 
+
+	* share/upgrade10-20:
+	Database upgrade script added
+
+	* bin/netreport:
+	Dependencies of recommended modules Term::ANSIColor and Text::Aligner
+	are resolved at runtime. If they are not avaliable or are too old
+	colorization is turned off.
+
+	* Build.PL:
+	Term::ANSIColor and Text::Aligner is just Recommends
+
+	* lib/Netaudit/SNMP:
+	Removed some semicolons that annoyed Mouse
 
 1.05.1 -- 20120520
 	* bin/netreport: 

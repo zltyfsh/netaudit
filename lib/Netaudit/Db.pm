@@ -48,7 +48,7 @@ use DBI;
 use Netaudit::Constants;
 use Readonly;
 
-Readonly my $SCHEMA_VER => 1;
+Readonly my $SCHEMA_VER => 2;
 
 =head1 ATTRIBUTES
 

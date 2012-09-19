@@ -17,91 +17,69 @@ use lib "$FindBin::Bin/../lib/perl5";
 use Getopt::Long;
 use Socket;
 use Regexp::Common;
-use Config::Simple;
 use FileHandle;    # don't know why I need this, but IO:Prompt fails without it
 use IO::Prompt;
 use Pod::Usage;
 use NetAddr::IP;
-use File::Spec::Functions;
 use File::stat;
 
 use Netaudit::Audit;
 use Netaudit::Db;
+use Netaudit::Constants;
+use Netaudit::Config;
 
-# config hash
-my %config;
+# configuration options
+my $opt_config   = '';
+my $opt_help     = 0;
+my $opt_man      = 0;
+my $opt_username = '';
+
 GetOptions(
-  \%config, 
-  'help|?!', 
-  'man!', 
-  'database|d=s', 
-  'community=s',
-  'configfile|c=s', 
-  'username|u=s'
+  'configfile|c=s' => \$opt_config,
+  'help|?!'        => \$opt_help,
+  'man!'           => \$opt_man,
+  'username|u=s'   => \$opt_username,
 ) or pod2usage(2);
-pod2usage(1) if $config{help};
-pod2usage(-exitstatus => 0, -verbose => 2) if $config{man};
+pod2usage(1) if $opt_help;
+pod2usage(-exitstatus => 0, -verbose => 2) if $opt_man;
 
-# set some early defaults
-$config{configfile} ||= "./netaudit.conf";
+# open the config file, die on failure
+my $cfg = eval { Netaudit::Config->new(filename => $opt_config) };
+die $@ if $@;
 
-if (-r $config{configfile}) {
-  my $cfg = Config::Simple->new($config{configfile})
-    or die sprintf "Reading config file %s failed: %s\n",
-      $config{configfile}, Config::Simple->error();
-
-  # get parameters from cli first, then config file
-  $config{database}  = $config{database}  || $cfg->param('database');
-  $config{community} = $config{community} || $cfg->param('community');
-  $config{range}     = [$cfg->param('range')];
-
-  # this are undocumented options to make development easier
-  $config{schema}      = $cfg->param('schema');
-  $config{development} = $cfg->param('development');
-
-  # if username set on cli, do not use password from config file
-  if (!$config{username}) {
-    $config{username} = $cfg->param('username');
-
-    # if password is set in config file it *must* have file mode x00, ie
-    # only be readable by the user
-    if ($cfg->param('password')) {
-      my $st = stat($config{configfile});
-      die "Password set in config file, but file is group/world readable\n"
-        if $st->mode & 044;
-      $config{password} = $cfg->param('password');
-    }
-  }
-  else {
-    # unset password to trigger prompt
-    $config{password} = "";
-  }
+# if username set on cli, non't use password from config file
+if (length $opt_username) {
+  $cfg->password('');
+}
+else {
+  # if we should us a password from config file,
+  # it mustn't be readable by anyone but the current user
+  my $st = stat($cfg->filename);
+  die "Password set in config file, but file is group/world readable\n"
+    if $st->mode & 044;
 }
 
-# set defaults for everything not already set
-$config{username}  ||= "netaudit";
-$config{database}  ||= "./netaudit.db";
-$config{community} ||= "public";
-$config{schema} ||= catfile($FindBin::Bin, '../share/netaudit', 'schema.sql');
+unless ($cfg->password) {
+  # are we interactive, if not, we have to die
+  die "Cannot ask for password when run non-interactively\n"
+    unless (-t STDIN && -t STDOUT);
 
-unless ($config{password}) {
   # get password from terminal
-  $config{password} =
-    prompt "Enter the password for user \"$config{username}\": ",
-    -echo => '*',
-    -tty;
+  my $pw = prompt(
+    -prompt => "Enter the password for user '" . $cfg->username . "': ",
+    -echo   => '*',
+    -tty
+  );
+  $cfg->password($pw);
 }
 
 # a list of the hosts to loop over
 my @hosts;
 
-# if we have got no hosts/ip on the but a range, push the range
-# it on to the command argument list
-push(@ARGV, split(/,/, join(",", @{$config{range}})))
-  if (!@ARGV && exists $config{range});
-
-# loop over each host or range on command line
-foreach my $arg (@ARGV) {
+# loop over each host or range on command line or range
+# from config file
+my @range = @ARGV ? @ARGV : @{$cfg->range};
+foreach my $arg (@range) {
   # is this a hostname, or IP-range?
   for ($arg) {
     # IPv4-range
@@ -132,17 +110,17 @@ foreach my $arg (@ARGV) {
 die "No valid host found in range or hostname\n" unless @hosts;
 
 # open database file
-my $db = eval {
+my $dbh = eval {
   Netaudit::Db->new(
-    'database' => $config{database},
-    'schema'   => $config{schema});
+    'database' => $cfg->database,
+    'schema'   => $cfg->schema,
+  );
 };
-die $@ if $@;
-$db->newrun;
-$config{db} = $db;
+die "$@\n" if $@;
+$dbh->newrun;
 
 foreach my $host (@hosts) {
-  Netaudit::Audit->run($host, \%config);
+  Netaudit::Audit->run($host, $cfg, $dbh);
 }
 
 __DATA__
@@ -158,9 +136,7 @@ netaudit -- Runs an network audit on one or more devices and stores data in data
 netaudit [options] [device...]
 
  Options
- --community             SNMP community when polling the devices
  --configfile=filename   Configuration file
- --database=filename     Database to store data in
  --help                  Prints a brief help message
  --man                   Full documentation
  --username              Username to use when contacting the devices   
@@ -177,6 +153,30 @@ Supported devices are routers running IOS, IOS XR or JunOS.
 
 =over 8
 
+=item B<-c> F<filename>, B<--configfile>=F<filename>
+
+The location of the configuration file to use.
+A config file is searched for in the following order:
+
+=over 2
+
+=item * B<--configfile> argument
+
+=item * F<netaudit.conf>
+
+=item * F<~/.netaudit>
+
+=item * F</usr/local/etc/netaudit.conf>
+
+=item * F</etc/netaudit.conf>
+
+=back
+
+Note that the B<first> found config file is used, there is B<NO>
+hierarchy of config files.
+
+The format of the config file is specified in L<CONFIGURATION FILE>
+
 =item B<-h>, B<-?>, B<--help>
 
 Print a brief help text and exit
@@ -184,21 +184,6 @@ Print a brief help text and exit
 =item B<-m>, B<--man>
 
 Print a full man page and exit
-
-=item B<--community>=I<community>
-
-SNMP community when polling data from the devices.
-Only RO rights are needed.
-Default is "public".
-
-=item B<-c> F<filename>, B<--configfile>=F<filename>
-
-Use F<filename> as a configuration file.
-See also L<CONFIGURATION FILE>.
-
-=item B<-d> F<filename>, B<--database>=F<filename>
-
-Store the captured data in the database file F<filename>.
 
 =item B<-u> I<username>, B<--username>=I<username>
 
@@ -215,20 +200,17 @@ If I</prefix> is missing a I</32> is assumed.
 
 =head1 CONFIGURATION FILE
 
-When running B<netaudit> regularly it is convenient to store
-common options in a file.
-
-F<netaudit.conf> is a plain text file where all parameters are
-configured like:
+The configuration file is a plain text file where all 
+parameters are configured like:
 
   parameter = value
 
 There can only be one parameter/value tuple per line.
-Lines starting with the character '#' are treated as commnts.
+Lines starting with the character '#' are treated as comments.
 
-The configuration options that cane be used are:
+=head2 PARAMETERS
 
-=over
+=over 8
 
 =item B<community> = I<community>
 
@@ -239,14 +221,15 @@ Default is C<public>.
 
 The database file to use when storing the data/results captured in
 the last run.
-Default is C<./netaudit.db>.
+The path is relative to the current directory where the script is run from.
+Default is C<netaudit.db>.
 
 =item B<password> = I<secret>
 
 The password to use when logging in on a device.
 If this parameter is set the config file B<CAN NOT> be readable
 by group or world, only the user her/him self.
-The application won't run if this isn't fulfilled.
+The applications won't run if this isn't fulfilled.
 
 =item B<range> = I<< <IP range> [, <IP range>] >>
 

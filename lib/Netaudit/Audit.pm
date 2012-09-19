@@ -22,12 +22,12 @@ use Netaudit::SNMP;
 use Netaudit::Constants;
 
 sub run {
-  my ($self, $host, $config) = @_;
+  my ($self, $host, $config, $db) = @_;
   say colored("host: $host", "bold");
 
   my $snmp = Netaudit::SNMP->new(
     hostname  => $host,
-    community => $config->{community},
+    community => $config->community,
   );
   if (!$snmp) {
     say colored("Host $host is unreachable: $@", "red");
@@ -70,18 +70,18 @@ sub run {
   $cli->prompt($plugin->prompt) if $plugin->prompt;
 
   # try to login
-  unless ($cli->login($config->{username}, $config->{password})) {
+  unless ($cli->login($config->username, $config->password)) {
     say colored("Can't login to $host: $cli->errmsg", "red");
     return;
   }
 
   # store hostname in database object
-  $config->{db}->hostname($host);
+  $db->hostname($host);
 
   my $driver = $plugin->new(
     cli  => $cli,
     snmp => $snmp,
-    db   => $config->{db},
+    db   => $db,
   );
 
   # run audits
