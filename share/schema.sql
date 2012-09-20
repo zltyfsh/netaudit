@@ -4,7 +4,7 @@ CREATE TABLE db (
        version	    INTEGER
 );
 --
-INSERT INTO db (version) VALUES ('1');
+INSERT INTO db (version) VALUES ('2');
 --
 CREATE TABLE IF NOT EXISTS runs (
        run 	    INTEGER PRIMARY KEY AUTOINCREMENT,

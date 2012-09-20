@@ -3,3 +3,9 @@
 * Add other device types, for example JunOSe (Juniper E/ERX-series)
 
 * Fix alignment problems for "host" column in isis top and ne
+
+* In bin/netreport there is a table describing the database and
+  the columns to report from. This should be stored in the database.
+
+* 'interfaces' takes a long time to run on Junipers. Opportunity to
+  find some optimalizations!
