@@ -1,3 +1,12 @@
+netaudit (2.1-1) precise; urgency=low
+
+  * New upstream
+  * debian/control: Updated dependencies
+  * debian/netaudit.doc: Added UPGRADE
+  * debian/netaudit.install: Added share/upgrade1.x-2.1
+
+ -- Per Carlson <pelle@hemmop.com>  Thu, 20 Sep 2012 13:59:01 +0200
+
 netaudit (1.05-1) unstable; urgency=low
 
   * New upstream 
