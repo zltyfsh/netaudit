@@ -1,3 +1,10 @@
+netaudit (2.1-2) precise; urgency=low
+
+  * Lowered debhelper dependency to 7.0.50 to make backports to 
+    lucid simpler.
+
+ -- Per Carlson <pelle@hemmop.com>  Fri, 21 Sep 2012 08:56:54 +0200
+
 netaudit (2.1-1) precise; urgency=low
 
   * New upstream
@@ -5,7 +12,7 @@ netaudit (2.1-1) precise; urgency=low
   * debian/netaudit.doc: Added UPGRADE
   * debian/netaudit.install: Added share/upgrade1.x-2.1
 
- -- Per Carlson <pelle@hemmop.com>  Thu, 20 Sep 2012 13:59:01 +0200
+ -- Per Carlson <pelle@hemmop.com>  Fri, 21 Sep 2012 08:51:29 +0200
 
 netaudit (1.05-1) unstable; urgency=low
 

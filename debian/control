@@ -2,7 +2,7 @@ Source: netaudit
 Section: net
 Priority: optional
 Maintainer: Per Carlson <pelle@hemmop.com>
-Build-Depends: debhelper (>= 8),
+Build-Depends: debhelper (>= 7.0.50),
  perl
 Build-Depends-Indep: libalgorithm-diff-perl,
  libconfig-simple-perl,
