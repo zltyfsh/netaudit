@@ -1,3 +1,9 @@
+netaudit (2.2-1) precise; urgency=low
+
+  * New upstream version
+
+ -- Per Carlson <pelle@hemmop.com>  Mon, 03 Dec 2012 12:53:11 +0100
+
 netaudit (2.1-2) precise; urgency=low
 
   * Lowered debhelper dependency to 7.0.50 to make backports to 
