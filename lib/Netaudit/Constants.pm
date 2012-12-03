@@ -11,7 +11,7 @@ package Netaudit::Constants;
 use strict;
 use warnings;
 
-use version; our $VERSION = qv('2.1');
+use version; our $VERSION = qv('2.2');
 
 use base qw{ Exporter };
 our @EXPORT = qw{
@@ -33,6 +33,8 @@ Readonly our $AUDIT_NODATA => 2;
 Readonly our $HOSTNAME => qr/
   (?:
     \p{Alnum}+ - \p{Alnum}+ - \p{Alnum}+   # BaneTele model
+    |
+    \p{Alnum}+ - \p{Alnum}+                # Pronea model
     |
     \p{Alnum}+ \. \p{Alnum}+               # Catch model
     |
