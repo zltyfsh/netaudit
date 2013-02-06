@@ -8,10 +8,7 @@
 
 package Netaudit::Plugin::XR;
 
-use feature 'switch';
-
-use Mouse;
-extends 'Netaudit::Plugin::Base';
+use Mojo::Base 'Netaudit::Plugin::Base';
 
 use Regexp::Common;
 use Regexp::IPv6 qw{ $IPv6_re };
@@ -61,8 +58,8 @@ sub prompt {
 
 ##### Set up environment #####
 
-sub BUILD {
-  my ($self) = @_;
+sub new {
+  my $self = shift->SUPER::new(@_);
 
   # disable "--more--" prompt
   $self->cli->cmd("terminal length 0");
@@ -73,7 +70,8 @@ sub BUILD {
 
   # and the 3.6.3 hack later
   $self->cli->cmd("terminal no-timestamp");
-  return;
+
+  return $self;
 }
 
 ##### routing summary #####
@@ -515,7 +513,5 @@ sub pwe3 {
   # if we got here we hav no data
   return $AUDIT_NODATA;
 }
-
-__PACKAGE__->meta->make_immutable;
 
 1;

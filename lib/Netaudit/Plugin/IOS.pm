@@ -8,10 +8,8 @@
 
 package Netaudit::Plugin::IOS;
 
-use feature 'switch';
-
-use Mouse;
-extends 'Netaudit::Plugin::Base';
+use Mojo::Base 'Netaudit::Plugin::Base';
+use Mojo::JSON;
 
 use Regexp::Common;
 use Regexp::IPv6 qw{ $IPv6_re };
@@ -70,15 +68,16 @@ sub prompt {
 
 # constructor
 
-sub BUILD {
-  my ($self) = @_;
+sub new {
+  my $self = shift->SUPER::new(@_);
 
   # disable "--more--" prompt
   $self->cli->cmd("terminal length 0");
 
   # no timestamps in show commands
   $self->cli->cmd("terminal no exec prompt timestamp");
-  return;
+
+  return $self;
 }
 
 ##### routing summary #####
@@ -136,22 +135,27 @@ sub route_summary {
     $h{afi} = "ipv4";
     for ($line) {
       when (m{ ^ connected \s+ (\d+) \s+ (\d+) }xms) {
+        $self->log->debug("got connected: $line");
         $h{'connected'} = $1 + $2;
       }
 
       when (m{ ^ static \s+ (\d+) \s+ (\d+) }xms) {
+        $self->log->debug("got static: $line");
         $h{'static'} = $1 + $2;
       }
 
       when (m{ ^ internal \s+ (\d+) }xms) {
+        $self->log->debug("got internal: $line");
         $h{'local'} = $1;
       }
 
       when (/$RE_ISIS/) {
+        $self->log->debug("got isis: $line");
         $h{'isis'} = $1 + $2;
       }
 
       when (/$RE_BGP/) {
+        $self->log->debug("got bgp: $line");
         $h{'bgp'} = $1 + $2;
       }
     }
@@ -445,6 +449,7 @@ sub bgp {
   my ($self) = @_;
 
   my ($peer, $asn, $vrf, $afi);
+  my $json = Mojo::JSON->new;
 
   my $RE_BGP_v4 = qr{
     ^ 
@@ -595,6 +600,7 @@ sub bgp {
 
   foreach my $line ($self->cli->cmd("show ip bgp vpnv4 all neighbors")) {
     chomp($line);
+    $self->log->debug("got line: $line");
 
     # Example command output (filtered):
     # BGP neighbor is 10.15.15.5,  vrf tad-internal,  remote AS 8979, external link
@@ -633,6 +639,7 @@ sub bgp {
         $vrf  = $2;
         $asn  = $3;
         $afi  = "";
+        $self->log->debug("got bgp vrf peer=$peer, vrf=$vrf, asn=$asn");
       }
 
       # VPNv4 peering
@@ -641,15 +648,18 @@ sub bgp {
         $asn  = $2;
         $vrf  = undef;
         $afi  = "";
+        $self->log->debug("got bgp vpnv4 peer=$peer, asn=$asn");
       }
 
       # get afi
       when (m{ ^ \s+ For \s address \s family: \s (\w+) }xms) {
         $afi = lc($1);
+        $self->log->debug("got afi=$afi");
       }
 
       # get number of current prefixes received
       when (/$RE_BGP_prefixes/) {
+        $self->log->debug("got bgp prefixes: $1");
         # we are only interested in vpnv4
         if ($afi eq 'vpnv4') {
           my $h = {
@@ -661,6 +671,7 @@ sub bgp {
           $h->{vrf} = $vrf if $vrf;
           $self->db->insert('bgp', $h);
           $peer = $asn = $vrf = $afi = undef;
+          $self->log->debug("inserting data in db: " . $json->encode($h));
         }
       }
     }
@@ -721,7 +732,5 @@ sub pwe3 {
   # if we got here, there are no data
   return $AUDIT_NODATA;
 }
-
-__PACKAGE__->meta->make_immutable;
 
 1;

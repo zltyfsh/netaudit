@@ -8,10 +8,8 @@
 
 package Netaudit::Audit;
 
-use strict;
-use warnings;
-use feature qw{ switch say };
-
+use Mojo::Base -base;
+use Mojo::Log;
 use Net::Telnet;
 use Term::ANSIColor;
 use Module::Pluggable require => 1, search_path => ['Netaudit::Plugin'];
@@ -21,13 +19,37 @@ use Netaudit::Db;
 use Netaudit::SNMP;
 use Netaudit::Constants;
 
+# Public attributes
+
+# Database handle
+has 'database';
+
+# Config hash
+has 'config';
+
+# Private attributes
+
+has '_log' => sub {
+  my $self = shift;
+
+  my $log = defined $self->config->log_file ? 
+    Mojo::Log->new(path => $self->config->log_file) :
+    Mojo::Log->new;
+    
+  $log->level($self->config->log_level);
+ 
+  return $log;
+};
+
+
+
 sub run {
-  my ($self, $host, $config, $db) = @_;
+  my ($self, $host) = @_;
   say colored("host: $host", "bold");
 
   my $snmp = Netaudit::SNMP->new(
     hostname  => $host,
-    community => $config->community,
+    community => $self->config->community,
   );
   if (!$snmp) {
     say colored("Host $host is unreachable: $@", "red");
@@ -63,25 +85,23 @@ sub run {
   # bump telnet buffer
   $cli->max_buffer_length(3000000);
 
-  # log to file if we have log/ directory
-  $cli->input_log("log/$host.log") if -d 'log';
-
   # set prompt
   $cli->prompt($plugin->prompt) if $plugin->prompt;
 
   # try to login
-  unless ($cli->login($config->username, $config->password)) {
+  unless ($cli->login($self->config->username, $self->config->password)) {
     say colored("Can't login to $host: $cli->errmsg", "red");
     return;
   }
 
   # store hostname in database object
-  $db->hostname($host);
+  $self->database->hostname($host);
 
   my $driver = $plugin->new(
+    log  => $self->_log,
     cli  => $cli,
     snmp => $snmp,
-    db   => $db,
+    db   => $self->database,
   );
 
   # run audits
@@ -104,7 +124,7 @@ sub run {
 #---
 
 sub ok {
-  my ($result) = @_;
+  my $result = shift;
   my $str;
 
   for ($result) {
