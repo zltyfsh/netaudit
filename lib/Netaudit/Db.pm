@@ -20,7 +20,6 @@ Netaudit::Db - SQLite3 datebase interaction
 
   my $dbh = Netaudit::Db->new(
     database => 'my.db',
-    schema   => 'schema.sql',
   );
 
   $dbh->newrun;
@@ -35,14 +34,14 @@ Netaudit::Db - SQLite3 datebase interaction
 Netaudit::Db is mostly a wrapper around DBI to make selects a bit 
 easier.
 Probably this would be obtained even easier by using DBIx::Simple,
-but that's an opprotunity in future releases :-)
+but that's an opportunity in future releases :-)
 
 Additionally there are some methods for inserting tailored data into
 the various tables, e.g C<newrun>, and C<insert>.
 
 =cut
 
-use Mouse;
+use Mojo::Base -base;
 use Carp;
 use DBI;
 use Netaudit::Constants;
@@ -58,23 +57,7 @@ The filename with the SQLite3 database.
 
 =cut
 
-has 'database' => (
-  is       => 'rw',
-  isa      => 'Str',
-  required => 1,
-);
-
-
-=head2 C<schema>
-
-The schema to use when creating an empty database.
-
-=cut
-
-has 'schema' => (
-  is      => 'rw',
-  default => undef,
-);
+has 'database';
 
 
 =head2 C<hostname>
@@ -83,34 +66,17 @@ The hostname for which subsequent inserts are stored for.
 
 =cut
 
-has 'hostname' => (
-  is => 'rw',
-  isa => 'Str',
-);
+has 'hostname';
 
-=head2 C<run>
 
-The current run for which database entries are stored at.
+# private attributes
 
-=cut
+# The current run for which database entries are stored at.
+has '_run';
 
-has 'run' => (
-  is       => 'ro',
-  init_arg => undef,
-  writer   => '_run',
-);
 
-=head2 C<dbh>
-
-The handle to the database
-
-=cut
-
-has 'dbh' => (
-  is       => 'ro',
-  init_arg => undef,
-  writer   => '_dbh',
-);
+# The handle to the database
+has '_dbh';
 
 
 =head1 METHODS
@@ -119,19 +85,17 @@ has 'dbh' => (
 
   my $db = NetAudit::Db->new(
     database  => 'my.db',
-    schema    => 'schema.sql'
   );
 
 Connects to the SQLite database stored in C<database>.
-If the database doesn't exist, a new one is created by using the
-template in C<schema>.
+If the database doesn't exist, a new one is created.
 
 Returns a Netaudit::Db object on success, or dies on errors.
 
 =cut
 
-sub BUILD {
-  my ($self) = @_;
+sub new {
+  my $self = shift->SUPER::new(@_);
 
   my $dbh = DBI->connect("dbi:SQLite:dbname=" . $self->database);
   die sprintf("Opening database failed: %s", $DBI::errstr)
@@ -158,16 +122,12 @@ sub BUILD {
 
   # if no answer, the database is probably empty. load schema
   else {
-    # try to init the database from the schema file
-    die sprintf("Could not open schema %s: %s", $self->schema, $!)
-      unless open(my $fh, "<", $self->schema);
-
     # do our sqlite support multiple statements?
     if ($DBD::SQLite::VERSION ge "1.30_01") {
       $dbh->{'sqlite_allow_multiple_statements'} = 1;
 
       # slurp schema all in once
-      my $stmt = do { local $/; <$fh> };
+      my $stmt = do { local $/; <DATA> };
       $dbh->do($stmt)
         or die sprintf("Executing SQL statements failed: %s", $dbh->errstr);
     }
@@ -175,12 +135,11 @@ sub BUILD {
       # read schema file statement by statement
       do {
         local $/ = "--";
-        my $stmt = <$fh>;
+        my $stmt = <DATA>;
         $dbh->do($stmt)
           or die sprintf("Executing SQL statement failed: %s", $dbh->errstr);
-      } while (<$fh>);
+      } while (<DATA>);
     }
-    close($fh);
   }
 
   return;
@@ -196,8 +155,8 @@ Close the database handle.
 sub disconnect {
   my $self = shift;
 
-  return unless $self->dbh;
-  $self->dbh->disconnect;
+  return unless $self->_dbh;
+  $self->_dbh->disconnect;
   return;
 }
 
@@ -211,15 +170,15 @@ Creates a new unique run in the database.
 sub newrun {
   my ($self) = @_;
   croak("No database connection")
-    unless $self->dbh;
+    unless $self->_dbh;
 
   my $epoch = time();
   my $stmt  = "INSERT INTO runs (epoch) VALUES (?)";
-  my $sth   = $self->dbh->prepare($stmt);
+  my $sth   = $self->_dbh->prepare($stmt);
   $sth->execute($epoch);
 
   # retreive the key to the just/last inserted line
-  my $run = eval { $self->dbh->last_insert_id("", "", "", "") };
+  my $run = eval { $self->_dbh->last_insert_id("", "", "", "") };
   croak("Could't get the id of the new run") if $@;
   $self->_run($run);
   return;
@@ -237,20 +196,20 @@ sub insert {
   my ($self, $table, $href) = @_;
 
   # sanity check
-  croak "No database connection" unless $self->dbh;
+  croak "No database connection" unless $self->_dbh;
 
   # add run + hostname to the hash
-  $href->{run}      = $self->run;
+  $href->{run}      = $self->_run;
   $href->{hostname} = $self->hostname;
 
   my $stmt = sprintf(
     "INSERT INTO %s (%s) VALUES (%s)",
     $table,
     join(", ", keys %{$href}),
-    join(", ", map { $self->dbh->quote($_) } values %{$href}));
+    join(", ", map { $self->_dbh->quote($_) } values %{$href}));
 
-  return $self->dbh->do($stmt)
-    or croak("Failed inserting a row: " . $self->dbh->errstr);
+  return $self->_dbh->do($stmt)
+    or croak("Failed inserting a row: " . $self->_dbh->errstr);
 }
 
 
@@ -264,9 +223,9 @@ sub select_aref {
   my ($self, $stmt, @args) = @_;
 
   croak("No database connection")
-    unless $self->dbh;
+    unless $self->_dbh;
 
-  my $sth = $self->dbh->prepare($stmt);
+  my $sth = $self->_dbh->prepare($stmt);
   $sth->execute(@args) or croak $sth->errstr;
 
   my $aref = $sth->fetchall_arrayref();
@@ -287,9 +246,9 @@ sub select_row {
   my ($self, $stmt, @args) = @_;
 
   croak("No database connection")
-    unless $self->dbh;
+    unless $self->_dbh;
 
-  my $sth = $self->dbh->prepare($stmt);
+  my $sth = $self->_dbh->prepare($stmt);
   $sth->execute(@args) or croak $sth->errstr;
 
   my @row = $sth->fetchrow_array();
@@ -310,9 +269,9 @@ C<$stmt>/C<@args>.
 sub select_column {
   my ($self, $stmt, @args) = @_;
 
-  my $aref = $self->dbh->selectcol_arrayref($stmt, {}, @args);
-  croak "select failed: $self->dbh->errstr"
-    if $self->dbh->errstr;
+  my $aref = $self->_dbh->selectcol_arrayref($stmt, {}, @args);
+  croak "select failed: $self->_dbh->errstr"
+    if $self->_dbh->errstr;
   return $aref ? @{$aref} : undef;
 }
 
@@ -330,10 +289,10 @@ sub dostmt {
   my ($self, $stmt, @args) = @_;
 
   croak("No database connection")
-    unless $self->dbh;
+    unless $self->_dbh;
 
-  my $rows = $self->dbh->do($stmt, undef, @args)
-    or croak $self->dbh->errstr;
+  my $rows = $self->_dbh->do($stmt, undef, @args)
+    or croak $self->_dbh->errstr;
 
   return $rows;
 }
@@ -350,7 +309,7 @@ Returns all hostnames with stored data in a run.
 sub gethosts {
   my ($self, $run) = @_;
 
-  return unless $self->getrun($run);    # check that run exists
+  return unless $self->_getrun($run);    # check that run exists
   my $stmt = "SELECT hostname FROM device WHERE run = ?";
   my $aref = $self->select_aref($stmt, $run)
     or return;
@@ -359,6 +318,105 @@ sub gethosts {
 }
 
 
-__PACKAGE__->meta->make_immutable;
+sub _getrun {
+  my ($self, $run) = @_;
+
+  my $stmt = "SELECT * FROM runs WHERE run = ?";
+  my $aref = $self->select_aref($stmt, $run)
+    or return;
+
+  return 1;
+}
+
 
 1;
+
+__DATA__
+
+
+DROP TABLE IF EXISTS db;
+--
+CREATE TABLE db (
+       version	    INTEGER
+);
+--
+INSERT INTO db (version) VALUES ('2');
+--
+CREATE TABLE IF NOT EXISTS runs (
+       run 	  INTEGER PRIMARY KEY AUTOINCREMENT,
+       epoch	TEXT
+);
+--
+CREATE TABLE IF NOT EXISTS route_summary (
+       run   	    INTEGER,
+       hostname   TEXT,
+       afi        TEXT,
+       connected  INTEGER,
+       static	    INTEGER,
+       local	    INTEGER,
+       isis	      INTEGER,
+       bgp	      INTEGER,
+       FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
+);
+--
+CREATE TABLE IF NOT EXISTS isis_neighbour (
+       run   	    INTEGER,
+       hostname   TEXT,
+       neighbour  TEXT,
+       interface  TEXT,
+       state	    TEXT,
+       FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
+);   
+--
+CREATE TABLE IF NOT EXISTS isis_topology (
+       run   	    INTEGER,
+       hostname   TEXT,
+       host    	  TEXT,
+       metric	    INTEGER,
+       interface  TEXT,
+       afi	      TEXT,
+       FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
+);   
+--
+CREATE TABLE IF NOT EXISTS bgp (
+       run   	    INTEGER,
+       hostname   TEXT,
+       peer       TEXT,
+       asn        INTEGER,
+       afi        TEXT,  
+       vrf	      TEXT,
+       prefixes	  INTEGER,
+       FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
+);   
+--
+CREATE TABLE IF NOT EXISTS interface (
+       run   	      INTEGER,
+       hostname     TEXT,
+       descr	      TEXT,
+       mtu	        INTEGER,
+       adminstatus  TEXT,
+       operstatus   TEXT,
+       ipv4status   TEXT,
+       ipv6status   TEXT,
+       speed	      INTEGER,
+       FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
+);   
+--
+CREATE TABLE IF NOT EXISTS pwe3 (
+       run   	    INTEGER,
+       hostname   TEXT,
+       interface  TEXT,
+       status	    TEXT,
+       peer	      TEXT,
+       FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
+);   
+--
+CREATE TABLE IF NOT EXISTS vrf (
+       run   	      INTEGER,
+       hostname     TEXT,
+       vrf	        TEXT,
+       active	      INTEGER,
+       associated   INTEGER,
+       FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
+);
+

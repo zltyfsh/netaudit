@@ -8,10 +8,7 @@
 
 package Netaudit::Plugin::IOS;
 
-use feature 'switch';
-
-use Mouse;
-extends 'Netaudit::Plugin::Base';
+use Mojo::Base 'Netaudit::Plugin::Base';
 
 use Regexp::Common;
 use Regexp::IPv6 qw{ $IPv6_re };
@@ -70,15 +67,16 @@ sub prompt {
 
 # constructor
 
-sub BUILD {
-  my ($self) = @_;
+sub new {
+  my $self = shift->SUPER::new(@_);
 
   # disable "--more--" prompt
   $self->cli->cmd("terminal length 0");
 
   # no timestamps in show commands
   $self->cli->cmd("terminal no exec prompt timestamp");
-  return;
+
+  return $self;
 }
 
 ##### routing summary #####

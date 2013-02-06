@@ -35,7 +35,7 @@ SNMP-tables, such as C<sysdescr>, C<vpn>, C<pwe3> and C<interfaces>.
 
 =cut
 
-use Mouse;
+use Mojo::Base -base;
 use Net::SNMP;
 use Carp;
 
@@ -126,10 +126,8 @@ The name of the host to open the SNMP-connection to.
 
 =cut
 
-has 'hostname' => (
-  is       => 'ro',
-  required => 1,
-);
+has 'hostname';
+
 
 =head2 C<domain>
 
@@ -139,53 +137,24 @@ Default is "udp/ipv4".
 
 =cut
 
-has 'domain' => (
-  is      => 'ro',
-  default => 'udp/ipv4',
-);
+has 'domain' => 'udp/ipv4';
+
 
 =head2 C<community>
 
 The SNMPv2c community.
+Default is 'public'.
 
 =cut
 
-has 'community' => (
-  is      => 'ro',
-  default => 'public',
-);
-
-=head2 C<session>
-
-The internal Net::SNMP session object.
-
-=cut
-
-has 'session' => (
-  is       => 'ro',
-  isa      => 'Net::SNMP',
-  init_arg => undef,
-  writer   => '_session',
-  lazy     => 1,
-  builder  => '_build_session',
-);
+has 'community' => 'public';
 
 
-sub _build_session {
-  my $self = shift;
+# private attributes
 
-  my ($s, $e) = Net::SNMP->session(
-    -domain    => $self->domain,
-    -hostname  => $self->hostname,
-    -community => $self->community,
-    -version   => '2c',
-    -timeout   => 1,
-    -retries   => 2,
-  );
+# The internal Net::SNMP session object.
 
-  return unless $s;
-  return $self->_session($s);
-}
+has '_session';
 
 
 =head1 METHODS
@@ -200,6 +169,27 @@ sub _build_session {
 Creates a new Netaudit::SNMP object.
 Required attributes are C<hostname> and C<community>, while
 C<domain> is optional.
+
+=cut
+
+sub new {
+  my $self = shift->SUPER::new(@_);
+
+  my ($s, $e) = Net::SNMP->session(
+    -domain    => $self->domain,
+    -hostname  => $self->hostname,
+    -community => $self->community,
+    -version   => '2c',
+    -timeout   => 1,
+    -retries   => 2,
+  );
+
+  return unless $s;
+
+  $self->_session($s);
+  return $self;
+}
+
 
 =head2 C<chr2str>
 
@@ -270,7 +260,7 @@ Close the SNMP connection freeing the resources.
 sub close {
   my ($self) = @_;
 
-  $self->session->close() if $self->session;
+  $self->_session->close() if $self->_session;
   return;
 }
 
@@ -289,10 +279,10 @@ sub walk {
   my ($self, $oid) = @_;
 
   # sanity checks
-  croak "No SNMP session" unless $self->session;
+  croak "No SNMP session" unless $self->_session;
   croak "No oid" unless $oid;
 
-  my $href = $self->session->get_table(-baseoid => $oid);
+  my $href = $self->_session->get_table(-baseoid => $oid);
   return $self->_strip_oid($oid, $href);
 }
 
@@ -311,10 +301,10 @@ sub get {
   my ($self, $oid) = @_;
 
   # sanity checka
-  croak "No SNMP session" unless $self->session;
+  croak "No SNMP session" unless $self->_session;
   croak "No oid" unless $oid;
 
-  my $href = $self->session->get_request(-varbindlist => [$oid]);
+  my $href = $self->_session->get_request(-varbindlist => [$oid]);
   return if (!defined($href) || $href->{$oid} eq 'noSuchObject');
 
   return $href->{$oid} || undef;
@@ -334,13 +324,13 @@ sub get_columns {
   my ($self, $baseoid, @columns) = @_;
 
   # sanity checks
-  croak "No SNMP session" unless $self->session;
+  croak "No SNMP session" unless $self->_session;
   croak "No baseoid"      unless $baseoid;
   croak "No columns"      unless @columns;
 
   my @oids = map { $baseoid . "." . $_ } @columns;
 
-  my $href = $self->session->get_entries(-columns => \@oids);
+  my $href = $self->_session->get_entries(-columns => \@oids);
   return $self->_strip_oid($baseoid, $href);
 }
 
@@ -434,7 +424,7 @@ sub interface {
   my ($self, $cb, $mib) = @_;
 
   # sanity checks
-  croak "No SNMP session"           unless $self->session;
+  croak "No SNMP session"           unless $self->_session;
   croak "No callback"               unless $cb;
   croak "Callback isn't a code ref" unless ref($cb) eq 'CODE';
 
@@ -548,7 +538,7 @@ sub pwe3 {
   my ($self, $cb, $mib) = @_;
 
   # sanity checks
-  croak "No SNMP session"           unless $self->session;
+  croak "No SNMP session"           unless $self->_session;
   croak "No callback"               unless $cb;
   croak "Callback isn't a code ref" unless ref($cb) eq 'CODE';
 
@@ -643,7 +633,7 @@ sub vrf {
   my ($self, $cb, $mib) = @_;
 
   # sanity checks
-  croak "No SNMP session"           unless $self->session;
+  croak "No SNMP session"           unless $self->_session;
   croak "No callback"               unless $cb;
   croak "Callback isn't a code ref" unless ref($cb) eq 'CODE';
 
@@ -688,8 +678,6 @@ sub _strip_oid {
   return $result;
 }
 
-
-__PACKAGE__->meta->make_immutable;
 
 1;
 

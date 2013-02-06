@@ -8,28 +8,12 @@
 
 package Netaudit::Plugin::Base;
 
-use Mouse;
+use Mojo::Base -base;
 use Carp;
 
 # attributes
 
-has 'db' => (
-  is       => 'ro',
-  isa      => 'Netaudit::Db',
-  required => 1,
-);
-
-has 'cli' => (
-  is       => 'ro',
-  isa      => 'Net::Telnet',
-  required => 1,
-);
-
-has 'snmp' => (
-  is       => 'ro',
-  isa      => 'Netaudit::SNMP',
-  required => 1,
-);
+has [ qw{ db cli snmp } ];
 
 # methods
 
@@ -52,8 +36,6 @@ sub interface { croak "interface isn't overridden" }
 sub vrf { croak "vrf isn't overridden" }
 
 sub pwe3 { croak "pwe3 isn't overridden" }
-
-__PACKAGE__->meta->make_immutable;
 
 1;
 

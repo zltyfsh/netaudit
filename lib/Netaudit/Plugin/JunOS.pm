@@ -8,9 +8,7 @@
 
 package Netaudit::Plugin::JunOS;
 
-use feature 'switch';
-use Mouse;
-extends 'Netaudit::Plugin::Base';
+use Mojo::Base 'Netaudit::Plugin::Base';
 
 use Regexp::Common;
 use Regexp::IPv6 qw{ $IPv6_re };
@@ -74,11 +72,13 @@ sub prompt {
 
 ##### Set up environment #####
 
-sub BUILD {
-  my ($self) = @_;
+sub new {
+  my $self = shift->SUPER::new(@_);
 
   # disable "--more--" prompt
   $self->cli->cmd("set cli screen-length 0");
+
+  return $self;
 }
 
 ##### Routing summary #####
