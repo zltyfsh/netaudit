@@ -103,8 +103,9 @@ sub route_summary {
 
   my $in_inet0 = 0;
   my $in_inet6 = 0;
-  my %h;
+  my $h;
 
+  $self->log->info('running "show route summary"');
   foreach my $line ($self->cli->cmd("show route summary")) {
     $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
     chomp($line);
@@ -117,36 +118,40 @@ sub route_summary {
       # a blank line separates the afi's
       when (m{ ^ \s* $ }xms) {
         if ($in_inet0) {
-          $h{afi} = "ipv4";
-          $self->db->insert('route_summary', \%h);
+          $h->{'afi'} = "ipv4";
+          $self->db->insert('route_summary', $h);
+          $self->log->insert('route_summary', $h);
           $in_inet0 = 0;
         }
         elsif ($in_inet6) {
-          $h{afi} = "ipv6";
-          $self->db->insert('route_summary', \%h);
+          $h->{'afi'} = "ipv6";
+          $self->db->insert('route_summary', $h);
+          $self->log->insert('route_summary', $h);
           $in_inet6 = 0;
         }
-        %h = ();
+        $h = undef;
       }
 
-      when (m{ ^ \s+ Direct: .*? (\d+) \s active }xms) { $h{connected} = $1; }
-      when (m{ ^ \s+ Local:  .*? (\d+) \s active }xms) { $h{local}     = $1; }
-      when (m{ ^ \s+ BGP:    .*? (\d+) \s active }xms) { $h{bgp}       = $1; }
-      when (m{ ^ \s+ Static: .*? (\d+) \s active }xms) { $h{static}    = $1; }
-      when (m{ ^ \s+ IS-IS:  .*? (\d+) \s active }xms) { $h{isis}      = $1; }
+      when (m{ ^ \s+ Direct: .*? (\d+) \s active }xms) { $h->{'connected'} = $1; }
+      when (m{ ^ \s+ Local:  .*? (\d+) \s active }xms) { $h->{'local'}     = $1; }
+      when (m{ ^ \s+ BGP:    .*? (\d+) \s active }xms) { $h->{'bgp'}       = $1; }
+      when (m{ ^ \s+ Static: .*? (\d+) \s active }xms) { $h->{'static'}    = $1; }
+      when (m{ ^ \s+ IS-IS:  .*? (\d+) \s active }xms) { $h->{'isis'}      = $1; }
     }
   }
 
   # the last section doesn't have a trailing blank line
   # flush hash on exit
-  if ($in_inet0 && %h) {
-    $h{afi} = "ipv4";
-    $self->db->insert('route_summary', \%h);
+  if ($in_inet0 && $h) {
+    $h->{afi} = "ipv4";
+    $self->db->insert('route_summary', $h);
+    $self->log->insert('route_summary', $h);
     $in_inet0 = 0;
   }
-  elsif ($in_inet6 && %h) {
-    $h{afi} = "ipv6";
-    $self->db->insert('route_summary', \%h);
+  elsif ($in_inet6 && $h) {
+    $h->{afi} = "ipv6";
+    $self->db->insert('route_summary', $h);
+    $self->log->insert('route_summary', $h);
     $in_inet6 = 0;
   }
 
@@ -179,6 +184,7 @@ sub isis_topology {
 	  (\w+)         	# NH afi ($2)
   }xmso;
 
+  $self->log->info('running "show isis spf brief level 2"');
   my @lines = $self->cli->cmd("show isis spf brief level 2");
 
   # Example output:
@@ -225,30 +231,28 @@ sub isis_topology {
         $metric = $2;
 
         if ($metric != 0) {       # skip our self
-          $self->db->insert(
-            'isis_topology',
-            {
-              host      => $host,
-              metric    => $metric,
-              interface => $3,
-              afi       => lc($4)
-            }
-          );
+          my $h = {
+            'host'      => $host,
+            'metric'    => $metric,
+            'interface' => $3,
+            'afi'       => lc($4),
+          };
+          $self->db->insert('isis_topology', $h);
+          $self->log->insert('isis_topology', $h);
         }
       }
 
       # match continuation lines, i.e. where a host
       # have more than one nexthop interface
       when (/$RE_ISIS_CONT/) {
-        $self->db->insert(
-          'isis_topology',
-          {
-            host      => $host,
-            metric    => $metric,
-            interface => $1,
-            afi       => lc($2)
-          }
-        );
+        my $h = {
+          'host'      => $host,
+          'metric'    => $metric,
+          'interface' => $1,
+          'afi'       => lc($2),
+        };
+        $self->db->insert('isis_topology', $h);
+        $self->log->insert('isis_topology', $h);
       }
     }
   }
@@ -271,6 +275,7 @@ sub isis_neighbour {
 	  (\w+)          # State ($3)
   }xmso;
 
+  $self->log->info('running "show isis adjacency"');
   foreach my $line ($self->cli->cmd("show isis adjacency")) {
     $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
     chomp($line);
@@ -293,14 +298,13 @@ sub isis_neighbour {
       when (m{ ^ Interface }xms) { }
 
       when (/$RE_ISIS/) {
-        $self->db->insert(
-          'isis_neighbour',
-          {
-            interface => $1,
-            neighbour => $2,
-            state     => lc($3)
-          }
-        );
+        my $h = {
+          'interface' => $1,
+          'neighbour' => $2,
+          'state'     => lc($3),
+        };
+        $self->db->insert('isis_neighbour', $h);
+        $self->log->insert('isis_neighbour', $h);
       }
     }
   }
@@ -342,6 +346,7 @@ sub bgp {
   }xms;
 
   my ($peer, $asn);
+  $self->log->info('running "show bgp summary"');
   foreach my $line ($self->cli->cmd("show bgp summary")) {
     $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
     chomp($line);
@@ -409,55 +414,51 @@ sub bgp {
         for ($1) {
           # inet.0 contains global IPv4 prefixes
           when (m{ ^ inet \. 0 $ }xms) {
-            $self->db->insert(
-              'bgp',
-              {
-                peer     => $peer,
-                asn      => $asn,
-                afi      => "ipv4",
-                prefixes => $prefixes
-              }
-            );
+            my $h = {
+              'peer'     => $peer,
+              'asn'      => $asn,
+              'afi'      => "ipv4",
+              'prefixes' => $prefixes,
+            };
+            $self->db->insert('bgp', $h);
+            $self->log->insert('bgp', $h);
           }
 
           # inet6.0 contains global IPv6 prefixes
           when (m{ ^ inet6 \. 0 $ }xms) {
-            $self->db->insert(
-              'bgp',
-              {
-                peer     => $peer,
-                asn      => $asn,
-                afi      => "ipv6",
-                prefixes => $prefixes
-              }
-            );
+            my $h = {
+              'peer'     => $peer,
+              'asn'      => $asn,
+              'afi'      => "ipv6",
+              'prefixes' => $prefixes,
+            };
+            $self->db->insert('bgp', $h);
+            $self->log->insert('bgp', $h);
           }
 
           # bgp.inet.0 contains VPNv4 prefixes
           when (m{ ^ bgp \. l3vpn \. 0 }xms) {
-            $self->db->insert(
-              'bgp',
-              {
-                peer     => $peer,
-                asn      => $asn,
-                afi      => "vpnv4",
-                prefixes => $prefixes
-              }
-            );
+            my $h = {
+              'peer'     => $peer,
+              'asn'      => $asn,
+              'afi'      => "vpnv4",
+              'prefixes' => $prefixes,
+            };
+            $self->db->insert('bgp', $h);
+            $self->log->insert('bgp', $h);
           }
 
           # <vrf>.inet.0 contains IPv4 prefixes in VRF
           when (m{ (.*) \. inet \. 0 $ }xms) {
-            $self->db->insert(
-              'bgp',
-              {
-                peer     => $peer,
-                asn      => $asn,
-                vrf      => $1,
-                afi      => "vpnv4",
-                prefixes => $prefixes
-              }
-            );
+            my $h = {
+              'peer'     => $peer,
+              'asn'      => $asn,
+              'afi'      => "vpnv4",
+              'vrf'      => $1,
+              'prefixes' => $prefixes,
+            };
+            $self->db->insert('bgp', $h);
+            $self->log->insert('bgp', $h);
           }
         }
       }
@@ -473,8 +474,9 @@ sub interface {
   my ($self) = @_;
 
   my $cb = sub {
-    my ($href) = @_;
-    $self->db->insert('interface', $href);
+    my ($h) = @_;
+    $self->db->insert('interface', $h);
+    $self->log->insert('interface', $h);
   };
 
   # use stock interfaces from N::SNMP;
@@ -487,8 +489,9 @@ sub vrf {
   my ($self) = @_;
 
   my $cb = sub {
-    my ($href) = @_;
-    $self->db->insert('vrf', $href);
+    my ($h) = @_;
+    $self->db->insert('vrf', $h);
+    $self->log->insert('vrf', $h);
   };
 
   # try stock vrfs from N::SNMP first
@@ -538,7 +541,10 @@ sub vrf {
   return $AUDIT_NODATA unless $result;
 
   # store collected data in database
-  map { $self->db->insert('vrf', $result->{$_}) } keys %{$result};
+  map { 
+    $self->db->insert('vrf', $result->{$_}) 
+    $self->log->insert('vrf', $result->{$_}) 
+  } keys %{$result};
 
   return $AUDIT_OK;
 }
@@ -549,8 +555,9 @@ sub pwe3 {
   my ($self) = @_;
 
   my $cb = sub {
-    my ($href) = @_;
-    $self->db->insert('pwe3', $href);
+    my ($h) = @_;
+    $self->db->insert('pwe3', $h);
+    $self->log->insert('pwe3', $h);
   };
 
   # try stock vrfs from N::SNMP first
@@ -599,7 +606,10 @@ sub pwe3 {
   return $AUDIT_NODATA unless $result;
 
   # store collected data in database
-  map { $self->db->insert('pwe3', $result->{$_}) } keys %{$result};
+  map { 
+    $self->db->insert('pwe3', $result->{$_}) 
+    $self->log->insert('pwe3', $result->{$_}) 
+  } keys %{$result};
 
   return $AUDIT_OK;
 }

@@ -9,7 +9,6 @@
 package Netaudit::Plugin::IOS;
 
 use Mojo::Base 'Netaudit::Plugin::Base';
-use Mojo::JSON;
 
 use Regexp::Common;
 use Regexp::IPv6 qw{ $IPv6_re };
@@ -85,7 +84,7 @@ sub new {
 sub route_summary {
   my ($self) = @_;
 
-  my %h;
+  my $h;
 
   my $RE_ISIS = qr{
     ^ 
@@ -108,6 +107,7 @@ sub route_summary {
 	  (\d+)     # subnets
   }xms;
 
+  $self->log->info('running "show ip route summary"');
   # do ipv4 first
   foreach my $line ($self->cli->cmd("show ip route summary")) {
     $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
@@ -132,35 +132,31 @@ sub route_summary {
     # isis BT-Lab     0           23          0           1380        3956
     #   Level 1: 0 Level 2: 23 Inter-area: 0
 
-    $h{afi} = "ipv4";
+    $h->{afi} = "ipv4";
     for ($line) {
       when (m{ ^ connected \s+ (\d+) \s+ (\d+) }xms) {
-        $self->log->debug("got connected: $line");
-        $h{'connected'} = $1 + $2;
+        $h->{'connected'} = $1 + $2;
       }
 
       when (m{ ^ static \s+ (\d+) \s+ (\d+) }xms) {
-        $self->log->debug("got static: $line");
-        $h{'static'} = $1 + $2;
+        $h->{'static'} = $1 + $2;
       }
 
       when (m{ ^ internal \s+ (\d+) }xms) {
-        $self->log->debug("got internal: $line");
-        $h{'local'} = $1;
+        $h->{'local'} = $1;
       }
 
       when (/$RE_ISIS/) {
-        $self->log->debug("got isis: $line");
-        $h{'isis'} = $1 + $2;
+        $h->{'isis'} = $1 + $2;
       }
 
       when (/$RE_BGP/) {
-        $self->log->debug("got bgp: $line");
-        $h{'bgp'} = $1 + $2;
+        $h->{'bgp'} = $1 + $2;
       }
     }
   }
-  $self->db->insert('route_summary', \%h);
+  $self->db->insert('route_summary', $h);
+  $self->log->insert('route_summary', $h);
 
   # and then ipv6
 
@@ -192,6 +188,7 @@ sub route_summary {
 	  (\d+)     # networks
   }xms;
 
+  $self->log->info('running "show ipv6 route summary"');
   foreach my $line ($self->cli->cmd("show ipv6 route summary")) {
     $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
     chomp($line);
@@ -222,38 +219,41 @@ sub route_summary {
     #   Number of prefixes:
     #     /8: 1, /40: 5, /64: 3, /124: 9, /128: 9
 
-    $h{afi} = "ipv6";
+    $h->{afi} = "ipv6";
     for ($line) {
       when (/$RE_v6_ONELINE/) {
-        $h{'local'}     = $1;
-        $h{'connected'} = $2;
-        $h{'static'}    = $3;
-        $h{'bgp'}       = $4;
-        $h{'isis'}      = $5;
+        $h = {
+          'local'     = $1,
+          'connected' = $2,
+          'static'    = $3,
+          'bgp'       = $4,
+          'isis'      = $5,
+        };
       }
 
       when (m{ ^ connected \s+ (\d+) }xms) {
-        $h{'connected'} = $1;
+        $h->{'connected'} = $1;
       }
 
       when (m{ ^ local \s+ (\d+) }xms) {
-        $h{'local'} = $1;
+        $h->{'local'} = $1;
       }
 
       when (m{ ^ static \s+ (\d+) }xms) {
-        $h{'static'} = $1;
+        $h->{'static'} = $1;
       }
 
       when (/$RE_v6_ISIS/) {
-        $h{'isis'} = $1;
+        $h->{'isis'} = $1;
       }
 
       when (/$RE_v6_BGP/) {
-        $h{'bgp'} = $1;
+        $h->{'bgp'} = $1;
       }
     }
   }
-  $self->db->insert('route_summary', \%h);
+  $self->db->insert('route_summary', $h);
+  $self->log->insert('route_summary', $h);
 
   return $AUDIT_OK;
 }
@@ -295,6 +295,7 @@ sub isis_topology {
   # we need two runs here. 12k do support "sh isis * top", but not all 7200
 
   # do ipv4 first
+  $self->log->info('running "show isis topology level-2"');
   foreach my $line ($self->cli->cmd("show isis topology level-2")) {
     chomp($line);
 
@@ -319,34 +320,35 @@ sub isis_topology {
         $host   = $1;
         $metric = $2;
 
-        $self->db->insert(
-          'isis_topology',
-          {
-            'host'      => $host,
-            'metric'    => $metric,
-            'interface' => $3,
-            'afi'       => "ipv4",
-          }
-        );
+        my $h = {
+          'host'      => $host,
+          'metric'    => $metric,
+          'interface' => $3,
+          'afi'       => "ipv4",
+        };
+
+        $self->db->insert('isis_topology', $h);
+        $self->log->insert('isis_topology', $h);
       }
 
       # match continuation lines, i.e. where a host
       # have more than one nexthop interface
       when (/$RE_ISIS_CONT/) {
-        $self->db->insert(
-          'isis_topology',
-          {
-            'host'      => $host,
-            'metric'    => $metric,
-            'interface' => $1,
-            'afi'       => "ipv4"
-          }
-        );
+        my $h = {
+          'host'      => $host,
+          'metric'    => $metric,
+          'interface' => $1,
+          'afi'       => "ipv4",
+        };
+
+        $self->db->insert('isis_topology', $h);
+        $self->log->insert('isis_topology', $h);
       }
     }
   }
 
   # and then ipv6
+  $self->log->info('running "show isis ipv6 topology level-2"');
   foreach my $line ($self->cli->cmd("show isis ipv6 topology level-2")) {
     chomp($line);
 
@@ -368,29 +370,29 @@ sub isis_topology {
         $host   = $1;
         $metric = $2;
 
-        $self->db->insert(
-          'isis_topology',
-          {
-            'host'      => $host,
-            'metric'    => $metric,
-            'interface' => $3,
-            'afi'       => "ipv6",
-          }
-        );
+        my $h = {
+          'host'      => $host,
+          'metric'    => $metric,
+          'interface' => $3,
+          'afi'       => "ipv6",
+        };
+
+        $self->db->insert('isis_topology', $h);
+        $self->log->insert('isis_topology', $h);
       }
 
       # match continuation lines, i.e. where a host
       # have more than one nexthop interface
       when (/$RE_ISIS_CONT/) {
-        $self->db->insert(
-          'isis_topology',
-          {
-            'host'      => $host,
-            'metric'    => $metric,
-            'interface' => $1,
-            'afi'       => "ipv6"
-          }
-        );
+        my $h = {
+          'host'      => $host,
+          'metric'    => $metric,
+          'interface' => $1,
+          'afi'       => "ipv6"
+        };
+
+        $self->db->insert('isis_topology' $h);
+        $self->log->insert('isis_topology' $h);
       }
     }
   }
@@ -414,6 +416,7 @@ sub isis_neighbour {
 	  (\w+)           # state ($3)
   }xmso;
 
+  $self->log->info('running "show clns neighbors"');
   foreach my $line ($self->cli->cmd("show clns neighbors")) {
     chomp($line);
 
@@ -429,14 +432,14 @@ sub isis_neighbour {
       when (m{ ^ System \s Id }xms) { }
 
       when (/$RE_ISIS/) {
-        $self->db->insert(
-          'isis_neighbour',
-          {
-            'neighbour' => $1,
-            'interface' => $2,
-            'state'     => lc($3)
-          }
-        );
+        my $h = {
+          'neighbour' => $1,
+          'interface' => $2,
+          'state'     => lc($3)
+        };
+
+        $self->db->insert('isis_neighbour', $h);
+        $self->log->insert('isis_neighbour', $h);
       }
     }
   }
@@ -449,7 +452,6 @@ sub bgp {
   my ($self) = @_;
 
   my ($peer, $asn, $vrf, $afi);
-  my $json = Mojo::JSON->new;
 
   my $RE_BGP_v4 = qr{
     ^ 
@@ -465,6 +467,7 @@ sub bgp {
   }xmso;
 
   # do ipv4 first
+  $self->log->info('running "show ip bgp ipv4 unicast summary"');
   foreach my $line ($self->cli->cmd("show ip bgp ipv4 unicast summary")) {
     chomp($line);
 
@@ -476,17 +479,16 @@ sub bgp {
     # 195.204.183.38  4       41741  777842 25756405        0    0    0 15w2d    Init
 
     for ($line) {
-
       when (/$RE_BGP_v4/) {
-        $self->db->insert(
-          'bgp',
-          {
-            'peer'     => $1,
-            'asn'      => $2,
-            'afi'      => "ipv4",
-            'prefixes' => $3
-          }
-        );
+        my $h = {
+          'peer'     => $1,
+          'asn'      => $2,
+          'afi'      => "ipv4",
+          'prefixes' => $3
+        };
+
+        $self->db->insert('bgp', $h);
+        $self->log->insert('bgp', $h);
       }
     }
   }
@@ -516,6 +518,7 @@ sub bgp {
 	  $
   }xms;
 
+  $self->log->info('running "show bgp ipv6 unicast summary"');
   foreach my $line ($self->cli->cmd("show bgp ipv6 unicast summary")) {
     chomp($line);
 
@@ -537,28 +540,28 @@ sub bgp {
 
       # ... and get the rest of the parameters
       when (/$RE_BGP_v6_CONT/) {
-        $self->db->insert(
-          'bgp',
-          {
-            'peer'     => $peer,
-            'asn'      => $1,
-            'afi'      => "ipv6",
-            'prefixes' => $2
-          }
-        );
+        my $h = {
+          'peer'     => $peer,
+          'asn'      => $1,
+          'afi'      => "ipv6",
+          'prefixes' => $2
+        };
+
+        $self->db->insert('bgp', $h);
+        $self->log->insert('bgp', $h);
       }
 
       # when all are on one line
       when (/$RE_BGP_v6/) {
-        $self->db->insert(
-          'bgp',
-          {
-            'peer'     => $1,
-            'asn'      => $2,
-            'afi'      => "ipv6",
-            'prefixes' => $3
-          }
-        );
+        my $h = {
+          'peer'     => $1,
+          'asn'      => $2,
+          'afi'      => "ipv6",
+          'prefixes' => $3
+        };
+
+        $self->db->insert('bgp', $h);
+        $self->log->insert('bgp', $h);
       }
     }
   }
@@ -598,9 +601,9 @@ sub bgp {
 	  (\d+)         # received ($1)
   }xms;
 
+  $self->log->info('running "show ip bgp vpnv4 all neighbors"');
   foreach my $line ($self->cli->cmd("show ip bgp vpnv4 all neighbors")) {
     chomp($line);
-    $self->log->debug("got line: $line");
 
     # Example command output (filtered):
     # BGP neighbor is 10.15.15.5,  vrf tad-internal,  remote AS 8979, external link
@@ -639,7 +642,6 @@ sub bgp {
         $vrf  = $2;
         $asn  = $3;
         $afi  = "";
-        $self->log->debug("got bgp vrf peer=$peer, vrf=$vrf, asn=$asn");
       }
 
       # VPNv4 peering
@@ -648,18 +650,15 @@ sub bgp {
         $asn  = $2;
         $vrf  = undef;
         $afi  = "";
-        $self->log->debug("got bgp vpnv4 peer=$peer, asn=$asn");
       }
 
       # get afi
       when (m{ ^ \s+ For \s address \s family: \s (\w+) }xms) {
         $afi = lc($1);
-        $self->log->debug("got afi=$afi");
       }
 
       # get number of current prefixes received
       when (/$RE_BGP_prefixes/) {
-        $self->log->debug("got bgp prefixes: $1");
         # we are only interested in vpnv4
         if ($afi eq 'vpnv4') {
           my $h = {
@@ -670,8 +669,8 @@ sub bgp {
           };
           $h->{vrf} = $vrf if $vrf;
           $self->db->insert('bgp', $h);
+          $self->log->insert('bgp', $h);
           $peer = $asn = $vrf = $afi = undef;
-          $self->log->debug("inserting data in db: " . $json->encode($h));
         }
       }
     }
@@ -685,8 +684,9 @@ sub interface {
   my ($self) = @_;
 
   my $cb = sub {
-    my ($href) = @_;
-    $self->db->insert('interface', $href);
+    my ($h) = @_;
+    $self->db->insert('interface', $h);
+    $self->log->insert('interface', $h);
   };
 
   # use stock interfaces from N::SNMP;
@@ -699,8 +699,9 @@ sub vrf {
   my ($self) = @_;
 
   my $cb = sub {
-    my ($href) = @_;
-    $self->db->insert('vrf', $href);
+    my ($h) = @_;
+    $self->db->insert('vrf', $h);
+    $self->log->insert('vrf', $h);
   };
 
   # try stock vrfs from N::SNMP first
@@ -719,8 +720,9 @@ sub pwe3 {
   my ($self) = @_;
 
   my $cb = sub {
-    my ($href) = @_;
-    $self->db->insert('pwe3', $href);
+    my ($h) = @_;
+    $self->db->insert('pwe3', $h);
+    $self->log->insert('pwe3', $h);
   };
 
   # try stock vrfs from N::SNMP first

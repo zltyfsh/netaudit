@@ -90,11 +90,11 @@ has 'password';
 has 'range' => sub { [] };
 
 
-# the log_lever to use. default is "info"
-has 'log_level' => 'info';
+# the log_level to use. default is "error"
+has 'log_level' => 'error';
 
 
-# the log_file to use. default is STDERR
+# the log_file to use. default is /dev/null
 has 'log_file';
 
 
