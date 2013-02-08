@@ -223,11 +223,11 @@ sub route_summary {
     for ($line) {
       when (/$RE_v6_ONELINE/) {
         $h = {
-          'local'     = $1,
-          'connected' = $2,
-          'static'    = $3,
-          'bgp'       = $4,
-          'isis'      = $5,
+          'local'     => $1,
+          'connected' => $2,
+          'static'    => $3,
+          'bgp'       => $4,
+          'isis'      => $5,
         };
       }
 
@@ -391,8 +391,8 @@ sub isis_topology {
           'afi'       => "ipv6"
         };
 
-        $self->db->insert('isis_topology' $h);
-        $self->log->insert('isis_topology' $h);
+        $self->db->insert('isis_topology', $h);
+        $self->log->insert('isis_topology', $h);
       }
     }
   }

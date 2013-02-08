@@ -542,8 +542,8 @@ sub vrf {
 
   # store collected data in database
   map { 
-    $self->db->insert('vrf', $result->{$_}) 
-    $self->log->insert('vrf', $result->{$_}) 
+    $self->db->insert('vrf', $result->{$_});
+    $self->log->insert('vrf', $result->{$_}); 
   } keys %{$result};
 
   return $AUDIT_OK;
@@ -607,8 +607,8 @@ sub pwe3 {
 
   # store collected data in database
   map { 
-    $self->db->insert('pwe3', $result->{$_}) 
-    $self->log->insert('pwe3', $result->{$_}) 
+    $self->db->insert('pwe3', $result->{$_});
+    $self->log->insert('pwe3', $result->{$_}); 
   } keys %{$result};
 
   return $AUDIT_OK;

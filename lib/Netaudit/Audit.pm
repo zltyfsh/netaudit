@@ -70,7 +70,7 @@ sub run {
   my $plugin = first { $_->handles($sysdescr) } $self->plugins;
   if (!$plugin) {
     say colored("Don't know how to handle $host based on sysDescr", "red");
-    $self->_log->error("Don't know how to handle $host based on sysDescr ($sysDescr)");
+    $self->_log->error("Don't know how to handle $host based on sysDescr ($sysdescr)");
     return;
   }
 
