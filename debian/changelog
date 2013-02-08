@@ -1,3 +1,9 @@
+netaudit (3.0.1-2) precise; urgency=low
+
+  * Fixed typo in dependencies
+
+ -- Per Carlson <pelle@hemmop.com>  Fri, 08 Feb 2013 21:04:22 +0100
+
 netaudit (3.0.1-1) precise; urgency=low
 
   * New upstream release
