@@ -266,7 +266,7 @@ sub fullreport {
 
 sub diffreport {
   my ($compare, $hostname) = @_;
-  my ($from, $from_epoch, $to, $to_epoch);
+  my ($from, $from_epoch, $to, $to_epoch, @hosts);
 
   if ($compare eq '' || $compare eq "0") {
     # get the two last runs
@@ -291,36 +291,47 @@ sub diffreport {
   my @from_hosts = gethosts($from);
   my @to_hosts   = gethosts($to);
 
-  # calculate the intersection and symmetric difference
-  # of the hosts, i.e. the hosts present in both runs, and
-  # those in only one run
-  # code from receipe 4.8 in perl cookbook
-  my @isect_hosts = ();
-  my @diff_hosts  = ();
-  my %count;
-  foreach my $e (@from_hosts, @to_hosts) { $count{$e}++ }
-  foreach my $e (keys %count) {
-    push @{$count{$e} == 2 ? \@isect_hosts : \@diff_hosts}, $e;
+  # if a hostname is given, just check that the host
+  # is in both @from_hosts and @to_hosts
+  if (length $hostname) {
+    die "$hostname doesn't exists in run $from\n"
+      unless grep { $hostname eq $_ } @from_hosts;
+    die "$hostname doesn't exists in run $to\n"
+      unless grep { $hostname eq $_ } @to_hosts;
+    # store our hostname in list of hosts to look for
+    @hosts = ( $hostname );
+  }
+
+  # if no host is given, run the diff over the hosts which
+  # are in both runs
+  else {
+    # calculate the intersection and symmetric difference
+    # of the hosts, i.e. the hosts present in both runs, and
+    # those in only one run
+    # code from receipe 4.8 in perl cookbook
+    my @isect_hosts = ();
+    my @diff_hosts  = ();
+    my %count;
+    foreach my $e (@from_hosts, @to_hosts) { $count{$e}++ }
+    foreach my $e (keys %count) {
+      push @{$count{$e} == 2 ? \@isect_hosts : \@diff_hosts}, $e;
+    }
+
+    if (@diff_hosts) {
+      print "The hosts in the runs do not overlap completly. Only comparing\n";
+      print "hosts audited in both runs. Those are:\n";
+      map { print " - $_\n"; } @isect_hosts;
+      print "\n";
+    }
+
+    # store the isect_hosts in the list of hosts to look for
+    @hosts = @isect_hosts;
   }
 
   print "Comparing the results from the audit runs\n";
   printf " %2d: %s\n", $from, strftime("%F %H:%M", localtime($from_epoch));
   printf " %2d: %s\n", $to,   strftime("%F %H:%M", localtime($to_epoch));
   print "\n";
-
-  if (@diff_hosts) {
-    my (%u, %i);
-    print "The hosts in the runs do not overlap completly. Only comparing\n";
-    print "hosts audited in both runs. Those are:\n";
-    map { print " - $_\n"; } @isect_hosts;
-    print "\n";
-  }
-
-  # if a hostname is given on cli and we do have non-empty @diff_hosts
-  # we have only got results for one run for that host. no point in
-  # running compare then.
-  die "We have only data for one of the runs for $hostname\n"
-    if (defined $hostname && @diff_hosts);
 
   # make sure hostname is defined and add wildcard
   $hostname ||= "";
@@ -352,9 +363,9 @@ sub diffreport {
       or die "Couldn't get data from the run $to\n";
 
     # only keep those rows in old and new where the hostname is in
-    # the isect_hosts list
+    # the hosts list
     my $helper = sub {
-      return scalar grep { /^$_[0]$/ } @isect_hosts;
+      return scalar grep { /^$_[0]$/ } @hosts;
     };
     @{$old} = grep { &$helper($$_[0]) } @{$old};
     @{$new} = grep { &$helper($$_[0]) } @{$new};

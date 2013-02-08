@@ -36,11 +36,10 @@ specification in L<Config::Simple>.
 
 =cut
 
-use Mouse;
+use Mojo::Base -base;
 use List::Util qw{ first };
 use File::Spec::Functions;
 use Config::Simple;
-use FindBin;
 
 # search paths for config files
 #<<< perltify, keep your fingers away!
@@ -62,100 +61,41 @@ Can be included in the call to ->new.
 
 =cut
 
-has 'filename' => (
-  is  => 'ro',
-  isa => 'Str',
-);
+has 'filename';
 
 
-=head2 C<database>
+# private attributes
 
-The F<filename> the SQLite database is stored in.
-Default is 'netaudit.db'.
-
-=cut
-
-has 'database' => (
-  is       => 'ro',
-  isa      => 'Str',
-  init_arg => undef,
-  default  => 'netaudit.db',
-);
+# The filename the SQLite database is stored in.
+# Default is 'netaudit.db'.
+has 'database' => 'netaudit.db';
 
 
-=head2 C<schema>
-
-The SQLite schema file to use when creating new database files.
-
-=cut
-
-has 'schema' => (
-  is       => 'ro',
-  isa      => 'Str',
-  init_arg => undef,
-);
+# The SNMP community.  Default is 'public'.
+has 'community' => 'public';
 
 
-=head2 C<community>
-
-The SNMP community.
-Default is 'public'.
-
-=cut
-
-has 'community' => (
-  is       => 'ro',
-  isa      => 'Str',
-  init_arg => undef,
-  default  => 'public',
-);
+# The telnet username to use. Default is 'netaudit'.
+has 'username' => 'netaudit';
 
 
-=head2 C<username>
-
-The telnet C<username> to use.
-Default is 'netaudit'.
-
-=cut
-
-has 'username' => (
-  is       => 'ro',
-  isa      => 'Str',
-  init_arg => undef,
-  default  => 'netaudit',
-);
+# The Telnet password to use.
+has 'password';
 
 
-=head2 C<password>
-
-The Telnet c>password> to use.
-Default is ''.
-
-=cut
-
-has 'password' => (
-  is       => 'rw',
-  isa      => 'Str',
-  init_arg => undef,
-  default  => '',
-);
+# A reference to an array with IP-ranges.
+# Each IP-range is given on the format 'prefix/prefix_length', 
+# i.e. '10.0.0.0/24'.
+# Default is an empty array reference.
+has 'range' => sub { [] };
 
 
-=head2 C<range>
+# the log_level to use. default is "error"
+has 'log_level' => 'error';
 
-A reference to an array with IP-ranges.
-Each IP-range iss given on the format 'prefix/prefix_length', 
-i.e. '10.0.0.0/24'.
-Default is an empty array reference.
 
-=cut
-
-has 'range' => (
-  is       => 'ro',
-  isa      => 'ArrayRef',
-  init_arg => undef,
-  default  => sub { [] },
-);
+# the log_file to use. default is /dev/null
+has 'log_file';
 
 
 =head1 METHODS
@@ -189,36 +129,36 @@ paths, from first to last:
 
 =back
 
-The first readable file found are used, i.e. there isn't a
+The first readable file found is used, i.e. there isn't a
 hierarchy of config files.
 
 =cut
 
-sub BUILD {
-  my $self = shift;
+sub new {
+  my $self = shift->SUPER::new(@_);
 
   # place filename attribute in new first in list (if given)
-  unshift @CONFIGFILES, $self->{filename} if length $self->{filename};
+  unshift @CONFIGFILES, $self->filename if length $self->filename;
   my $cf = first { -r $_ } @CONFIGFILES;
   die "No config file found\n" unless length $cf;
 
   my $cfg = Config::Simple->new($cf)
     or die "Failed to open $cf: ", Config::Simple->error(), "\n";
 
-  # store teh config filename
-  $self->{filename} = $cf;
+  # store the config filename
+  $self->filename($cf);
 
   # set our attributes from the config file, overriding the
   # defaults
-  $self->{database} = $cfg->param('database') || $self->{database};
-  $self->{schema} = $cfg->param('schema')
-    || catfile($FindBin::Bin, '../share/netaudit', 'schema.sql');
-  $self->{community} = $cfg->param('community') || $self->{community};
-  $self->{range}     = [$cfg->param('range')];
-  $self->{username}  = $cfg->param('username') || $self->{username};
-  $self->{password}  = $cfg->param('password') || $self->{password};
+  $self->database($cfg->param('database'))   if $cfg->param('database');
+  $self->community($cfg->param('community')) if $cfg->param('community');
+  $self->range([$cfg->param('range')])       if $cfg->param('range');
+  $self->username($cfg->param('username'))   if $cfg->param('username');
+  $self->password($cfg->param('password'))   if $cfg->param('password');
+  $self->log_level($cfg->param('log_level')) if $cfg->param('log_level');
+  $self->log_file($cfg->param('log_file'))   if $cfg->param('log_file');
 
-  return;
+  return $self;
 }
 
 1;

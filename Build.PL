@@ -17,7 +17,7 @@ my $build = Module::Build->new (
     'Net::Telnet' => 0,
     'NetAddr::IP' => 0,
     'Net::SNMP' => 0,
-    'Mouse' => 0,
+    'Mojolicious' => 0,
     'IO::Prompt' => 0,
     'Regexp::Common' => 0,
     'Regexp::IPv6' => 0,
@@ -34,7 +34,6 @@ my $build = Module::Build->new (
     'Term::ANSIColor' => '2.01',
   },
   share_files => { 
-    'share/schema.sql' => 'share/schema.sql',
     'share/upgrade1.x-2.1' => 'share/upgrade1.x-2.1',
   },
   doc_files   => { 

@@ -47,7 +47,7 @@ pod2usage(-exitstatus => 0, -verbose => 2) if $opt_man;
 my $cfg = eval { Netaudit::Config->new(filename => $opt_config) };
 die $@ if $@;
 
-# if username set on cli, non't use password from config file
+# if username set on cli, don't use password from config file
 if (length $opt_username) {
   $cfg->password('');
 }
@@ -55,8 +55,8 @@ else {
   # if we should us a password from config file,
   # it mustn't be readable by anyone but the current user
   my $st = stat($cfg->filename);
-  die "Password set in config file, but file is group/world readable\n"
-    if $st->mode & 044;
+  die "Password set in config file (" . $cfg->filename . "), but file is group/world readable\n"
+    if (length $cfg->password && $st->mode & 044);
 }
 
 unless ($cfg->password) {
@@ -110,17 +110,18 @@ foreach my $arg (@range) {
 die "No valid host found in range or hostname\n" unless @hosts;
 
 # open database file
-my $dbh = eval {
-  Netaudit::Db->new(
-    'database' => $cfg->database,
-    'schema'   => $cfg->schema,
-  );
-};
+my $dbh = eval { Netaudit::Db->new(database => $cfg->database) };
 die "$@\n" if $@;
 $dbh->newrun;
 
+my $audit = eval { Netaudit::Audit->new(
+  config   => $cfg,
+  database => $dbh,
+)};
+die $@ if $@;
+
 foreach my $host (@hosts) {
-  Netaudit::Audit->run($host, $cfg, $dbh);
+  $audit->run($host);
 }
 
 __DATA__
@@ -223,6 +224,16 @@ The database file to use when storing the data/results captured in
 the last run.
 The path is relative to the current directory where the script is run from.
 Default is C<netaudit.db>.
+
+=item B<log_level> = I<< fatal | error | warn | info | debug >>
+
+The level of logging done.
+Default is I<error>.
+
+=item B<log_file> = F<logfile>
+
+The file to log to.
+Default is F</dev/null>, i.e no logging.
 
 =item B<password> = I<secret>
 

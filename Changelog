@@ -1,3 +1,13 @@
+3.0.1 -- 2013-01-08
+	Updated Changelog
+	Updated info on new netaudit.conf parameters (logging)
+
+3.0 -- 2013-01-08
+	Moved away from Mouse to Mojo
+	The SQL schema is now included in the database module (DATA section)
+	Added logging to file
+	Fixed 'netaudit --diff hostname'
+
 2.2 -- 2012-12-03
 	* lib/Netaudit/Constants:
 	Added Pronea style of hostnames

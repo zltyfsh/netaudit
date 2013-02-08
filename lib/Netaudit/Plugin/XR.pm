@@ -8,10 +8,7 @@
 
 package Netaudit::Plugin::XR;
 
-use feature 'switch';
-
-use Mouse;
-extends 'Netaudit::Plugin::Base';
+use Mojo::Base 'Netaudit::Plugin::Base';
 
 use Regexp::Common;
 use Regexp::IPv6 qw{ $IPv6_re };
@@ -61,8 +58,8 @@ sub prompt {
 
 ##### Set up environment #####
 
-sub BUILD {
-  my ($self) = @_;
+sub new {
+  my $self = shift->SUPER::new(@_);
 
   # disable "--more--" prompt
   $self->cli->cmd("terminal length 0");
@@ -73,7 +70,8 @@ sub BUILD {
 
   # and the 3.6.3 hack later
   $self->cli->cmd("terminal no-timestamp");
-  return;
+
+  return $self;
 }
 
 ##### routing summary #####
@@ -105,6 +103,7 @@ sub route_summary {
   # Total           8184      20        0          1370712
 
   my ($h);
+  $self->log->info('running "show route afi-all summary"');
   foreach my $line ($self->cli->cmd("show route afi-all summary")) {
     $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
     chomp($line);
@@ -125,6 +124,7 @@ sub route_summary {
       # when we hits total, store data
       when (m{ ^ Total }xms) {
         $self->db->insert('route_summary', $h);
+        $self->log->insert('route_summary', $h);
         $h = ();
       }
     }
@@ -184,15 +184,15 @@ sub isis_topology {
 
       # get all entries with numerical metric
       when (/$RE_ISIS/) {
-        $self->db->insert(
-          'isis_topology',
-          {
-            host      => $1,
-            metric    => $2,
-            interface => $3,
-            afi       => $afi
-          }
-        );
+        my $h = {
+          'host'      => $1,
+          'metric'    => $2,
+          'interface' => $3,
+          'afi'       => $afi,
+        };
+
+        $self->db->insert('isis_topology', $h);
+        $self->log->insert('isis_topology', $h);
       }
     }
   }
@@ -215,6 +215,7 @@ sub isis_neighbour {
 	  (\w+)                      # state, $3
 	}xmso;
 
+  $self->log->info('running "show isis neighbors"');
   foreach my $line ($self->cli->cmd("show isis neighbors")) {
     $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
     chomp($line);
@@ -239,14 +240,14 @@ sub isis_neighbour {
       when (m{^ (?: IS-IS | System \s Id | Total \s neighbour \s count ) }) { }
 
       when (/$RE_ISIS/) {
-        $self->db->insert(
-          'isis_neighbour',
-          {
-            neighbour => $1,
-            interface => $2,
-            state     => lc($3)
-          }
-        );
+        my $h = {
+          'neighbour' => $1,
+          'interface' => $2,
+          'state'     => lc($3),
+        };
+
+        $self->db->insert('isis_neighbour', $h);
+        $self->log->insert('isis_neighbour', $h);
       }
     }
   }
@@ -284,6 +285,7 @@ sub bgp {
   }xms;
 
   # first we do IPv4 and IPv6
+  $self->log->info('running "show bgp all unicast summary"');
   foreach my $line ($self->cli->cmd("show bgp all unicast summary")) {
     $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
     chomp($line);
@@ -319,15 +321,15 @@ sub bgp {
       }
 
       when (/$RE_BGPv4/) {
-        $self->db->insert(
-          'bgp',
-          {
-            peer     => $1,
-            asn      => $2,
-            prefixes => $3,
-            afi      => $afi
-          }
-        );
+        my $h = {
+          'peer'     => $1,
+          'asn'      => $2,
+          'prefixes' => $3,
+          'afi'      => $afi,
+        };
+
+        $self->db->insert('bgp', $h);
+        $self->log->insert('bgp', $h);
       }
 
       # for IPv6 peers, we need to store peer ip
@@ -336,15 +338,15 @@ sub bgp {
       }
 
       when (/$RE_BGPv6/) {
-        $self->db->insert(
-          'bgp',
-          {
-            peer     => $peer,
-            asn      => $1,
-            prefixes => $2,
-            afi      => $afi
-          }
-        );
+        my $h = {
+          'peer'     => $peer,
+          'asn'      => $1,
+          'prefixes' => $2,
+          'afi'      => $afi,
+        };
+
+        $self->db->insert('bgp', $h);
+        $self->log->insert('bgp', $h);
       }
     }
   }
@@ -362,6 +364,7 @@ sub bgp {
   }xmso;
 
   # and then the IPv4 peerings in VRF's
+  $self->log->info('running "show bgp vrf all summary"');
   foreach my $line ($self->cli->cmd("show bgp vrf all summary")) {
     $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
     chomp($line);
@@ -394,16 +397,16 @@ sub bgp {
 
       # then neighbour and prefixes
       when (/$RE_BGP_vrf/) {
-        $self->db->insert(
-          'bgp',
-          {
-            peer     => $1,
-            asn      => $2,
-            afi      => "vpnv4",
-            vrf      => $vrf,
-            prefixes => $3
-          }
-        );
+        my $h = {
+          'peer'     => $1,
+          'asn'      => $2,
+          'afi'      => "vpnv4",
+          'vrf'      => $vrf,
+          'prefixes' => $3,
+        };
+
+        $self->db->insert('bgp', $h);
+        $self->log->insert('bgp', $h);
       }
     }
   }
@@ -422,6 +425,7 @@ sub bgp {
     $
   }xmso;
 
+  $self->log->info('running "show bgp vpnv4 unicast summary"');
   foreach my $line ($self->cli->cmd("show bgp vpnv4 unicast summary")) {
     $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
     chomp($line);
@@ -447,15 +451,15 @@ sub bgp {
 
     for ($line) {
       when (/$RE_BGP_vpnv4/) {
-        $self->db->insert(
-          'bgp',
-          {
-            peer     => $1,
-            asn      => $2,
-            afi      => "vpnv4",
-            prefixes => $3
-          }
-        );
+        my $h = {
+          'peer'     => $1,
+          'asn'      => $2,
+          'afi'      => "vpnv4",
+          'prefixes' => $3,
+        };
+
+        $self->db->insert('bgp', $h);
+        $self->log->insert('bgp', $h);
       }
     }
   }
@@ -468,8 +472,9 @@ sub interface {
   my ($self) = @_;
 
   my $cb = sub {
-    my ($href) = @_;
-    $self->db->insert('interface', $href);
+    my ($h) = @_;
+    $self->db->insert('interface', $h);
+    $self->log->insert('interface', $h);
   };
 
   # use stock interfaces from N::SNMP;
@@ -482,8 +487,9 @@ sub vrf {
   my ($self) = @_;
 
   my $cb = sub {
-    my ($href) = @_;
-    $self->db->insert('vrf', $href);
+    my ($h) = @_;
+    $self->db->insert('vrf', $h);
+    $self->log->insert('vrf', $h);
   };
 
   # try stock vrfs from N::SNMP first
@@ -502,8 +508,9 @@ sub pwe3 {
   my ($self) = @_;
 
   my $cb = sub {
-    my ($href) = @_;
-    $self->db->insert('pwe3', $href);
+    my ($h) = @_;
+    $self->db->insert('pwe3', $h);
+    $self->log->insert('pwe3', $h);
   };
 
   # try stock vrfs from N::SNMP first
@@ -515,7 +522,5 @@ sub pwe3 {
   # if we got here we hav no data
   return $AUDIT_NODATA;
 }
-
-__PACKAGE__->meta->make_immutable;
 
 1;

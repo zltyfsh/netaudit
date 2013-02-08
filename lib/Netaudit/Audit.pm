@@ -8,10 +8,7 @@
 
 package Netaudit::Audit;
 
-use strict;
-use warnings;
-use feature qw{ switch say };
-
+use Mojo::Base -base;
 use Net::Telnet;
 use Term::ANSIColor;
 use Module::Pluggable require => 1, search_path => ['Netaudit::Plugin'];
@@ -20,17 +17,43 @@ use List::Util qw{ first };
 use Netaudit::Db;
 use Netaudit::SNMP;
 use Netaudit::Constants;
+use Netaudit::Log;
+
+# Public attributes
+
+# Database handle
+has 'database';
+
+# Config hash
+has 'config';
+
+# Private attributes
+
+has '_log' => sub {
+  my $self = shift;
+
+  my $log_file = $self->config->log_file // '/dev/null';
+  my $log = Netaudit::Log->new(path => $log_file);
+  $log->level($self->config->log_level);
+ 
+  return $log;
+};
+
+
+# Methods
 
 sub run {
-  my ($self, $host, $config, $db) = @_;
+  my ($self, $host) = @_;
   say colored("host: $host", "bold");
+  $self->_log->info("Auditing host $host");
 
   my $snmp = Netaudit::SNMP->new(
     hostname  => $host,
-    community => $config->community,
+    community => $self->config->community,
   );
   if (!$snmp) {
     say colored("Host $host is unreachable: $@", "red");
+    $self->_log->error("Host $host is unreachable: $@");
     eval { $snmp->close(); };    # clean up gracefully
     return;
   }
@@ -38,6 +61,7 @@ sub run {
   my $sysdescr = $snmp->sysdescr();
   if (!$sysdescr) {
     say colored("Failed to get a sysDescr from $host: $@", "red");
+    $self->_log->error("Failed to get a sysDescr from $host: $@");
     return;
   }
 
@@ -46,42 +70,46 @@ sub run {
   my $plugin = first { $_->handles($sysdescr) } $self->plugins;
   if (!$plugin) {
     say colored("Don't know how to handle $host based on sysDescr", "red");
+    $self->_log->error("Don't know how to handle $host based on sysDescr ($sysdescr)");
     return;
   }
 
   # create a cli session
-  my $cli = Net::Telnet->new(
-    Host    => $host,
-    Errmode => "return",
-    Timeout => 2
-  );
-  if (!$cli) {
-    say colored("Failed to open telnet session to $host", "red");
+  my $cli = eval { Net::Telnet->new($host) };
+  if ($@) {
+    say colored("Failed to open telnet session to $host: $@", "red");
+    $self->_log->error("Failed to open telnet session to $host: $@");
     return;
   }
 
-  # bump telnet buffer
-  $cli->max_buffer_length(3000000);
+  # bump telnet buffer (10 MByte)
+  $cli->max_buffer_length(10 * 1024 * 1024);
 
-  # log to file if we have log/ directory
-  $cli->input_log("log/$host.log") if -d 'log';
+  # increase command timeout to 30s
+  $cli->timeout(30);
 
   # set prompt
   $cli->prompt($plugin->prompt) if $plugin->prompt;
 
   # try to login
-  unless ($cli->login($config->username, $config->password)) {
+  unless ($cli->login(
+    Name     => $self->config->username, 
+    Password => $self->config->password,
+    Errmode  => "return",
+  )) {
     say colored("Can't login to $host: $cli->errmsg", "red");
+    $self->_log->error("Can't login to $host: $cli->errmsg");
     return;
   }
 
   # store hostname in database object
-  $db->hostname($host);
+  $self->database->hostname($host);
 
   my $driver = $plugin->new(
+    log  => $self->_log,
     cli  => $cli,
     snmp => $snmp,
-    db   => $db,
+    db   => $self->database,
   );
 
   # run audits
@@ -104,7 +132,7 @@ sub run {
 #---
 
 sub ok {
-  my ($result) = @_;
+  my $result = shift;
   my $str;
 
   for ($result) {
