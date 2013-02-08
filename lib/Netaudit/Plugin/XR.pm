@@ -17,7 +17,7 @@ use Netaudit::Constants;
 
 ### RegExps ###
 
-my $PROMPT   = '/RP\/\d+\/(RP)*\d+\/CPU\d+:[-\p{Alnum}\.]+#\s*/';
+my $PROMPT   = '/RP.*\/CPU\d+:[-\p{Alnum}\.]+#\s*/';
 my @HANDLES = (qr{ Cisco \s IOS \s XR \s Software }xms);
 my $MAC = qr{ [0-f]{4} \. [0-f]{4} \. [0-f]{4} }xms;
 

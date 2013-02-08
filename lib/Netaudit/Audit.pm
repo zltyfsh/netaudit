@@ -59,6 +59,7 @@ sub run {
   }
 
   my $sysdescr = $snmp->sysdescr();
+  $self->_log->debug("$host sysDescr=$sysdescr");
   if (!$sysdescr) {
     say colored("Failed to get a sysDescr from $host: $@", "red");
     $self->_log->error("Failed to get a sysDescr from $host: $@");
@@ -68,6 +69,7 @@ sub run {
   # find the plugin which handles this host based on the
   # SNMP sysDescr (contained in $res)
   my $plugin = first { $_->handles($sysdescr) } $self->plugins;
+  $self->_log->debug("$host plugin=$plugin");
   if (!$plugin) {
     say colored("Don't know how to handle $host based on sysDescr", "red");
     $self->_log->error("Don't know how to handle $host based on sysDescr ($sysdescr)");
@@ -97,8 +99,8 @@ sub run {
     Password => $self->config->password,
     Errmode  => "return",
   )) {
-    say colored("Can't login to $host: $cli->errmsg", "red");
-    $self->_log->error("Can't login to $host: $cli->errmsg");
+    say colored("Can't login to $host: " . $cli->errmsg, "red");
+    $self->_log->error("Can't login to $host: " . $cli->errmsg);
     return;
   }
 
