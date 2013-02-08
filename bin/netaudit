@@ -225,6 +225,16 @@ the last run.
 The path is relative to the current directory where the script is run from.
 Default is C<netaudit.db>.
 
+=item B<log_level> = I<< fatal | error | warn | info | debug >>
+
+The level of logging done.
+Default is I<error>.
+
+=item B<log_file> = F<logfile>
+
+The file to log to.
+Default is F</dev/null>, i.e no logging.
+
 =item B<password> = I<secret>
 
 The password to use when logging in on a device.
