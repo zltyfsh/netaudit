@@ -59,12 +59,12 @@ sub run {
   }
 
   my $sysdescr = $snmp->sysdescr();
-  $self->_log->debug("$host sysDescr=$sysdescr");
   if (!$sysdescr) {
     say colored("Failed to get a sysDescr from $host: $@", "red");
     $self->_log->error("Failed to get a sysDescr from $host: $@");
     return;
   }
+  $self->_log->debug("$host sysDescr=$sysdescr");
 
   # find the plugin which handles this host based on the
   # SNMP sysDescr (contained in $res)

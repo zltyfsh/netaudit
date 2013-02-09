@@ -1,3 +1,6 @@
+3.0.3 -- 2013-02-09
+	Fixed problem logging an undefined sysDescr
+
 3.0.2 -- 2013-01-08
 	Fixed Prompt-problem on ASR9k
 	Fixed error message output on failed login
