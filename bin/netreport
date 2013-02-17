@@ -159,7 +159,8 @@ elsif (exists $opts{diff}) {
 
 # if we end up here no operational mode is selected
 else {
-  pod2usage(-exitval => 2, -msg => "No operational mode is selected");
+  # running a diff over the last runs is the default
+  diffreport('', shift @ARGV);
 }
 
 exit;
@@ -266,14 +267,24 @@ sub fullreport {
 
 sub diffreport {
   my ($compare, $hostname) = @_;
-  my ($from, $from_epoch, $to, $to_epoch, @hosts);
+  my ($from, $from_epoch, $to, $to_epoch, @hosts, $search_host);
+
+  # grab the unmodified hostname
+  my $have_hostname_arg = defined $hostname;
+  if ($have_hostname_arg) {
+    $search_host = $hostname; 
+    $search_host .= '%' unless $hostname =~ /%/;
+  }
+  else {
+    $search_host = '%';
+  }
 
   if ($compare eq '' || $compare eq "0") {
     # get the two last runs
-    ($to, $to_epoch, $from, $from_epoch) = getrun(-1, 2);
+    ($to, $to_epoch, $from, $from_epoch) = getrun(-1, 2, $search_host);
   }
   else {
-    ($from, $to) = ($compare =~ m{ ^ (\d+) (?: - (\d+))* $ }xms);
+    ($from, $to) = ($compare =~ m{ ^ (\d+) (?: [-,] (\d+))* $ }xms);
     die "Illegal compare argument: $compare\n"
       unless defined($from);
 
@@ -293,11 +304,11 @@ sub diffreport {
 
   # if a hostname is given, just check that the host
   # is in both @from_hosts and @to_hosts
-  if (length $hostname) {
+  if ($have_hostname_arg) {
     die "$hostname doesn't exists in run $from\n"
-      unless grep { $hostname eq $_ } @from_hosts;
+      unless grep { m{ ^ $hostname }xms } @from_hosts;
     die "$hostname doesn't exists in run $to\n"
-      unless grep { $hostname eq $_ } @to_hosts;
+      unless grep { m{ ^ $hostname }xms } @to_hosts;
     # store our hostname in list of hosts to look for
     @hosts = ( $hostname );
   }
@@ -333,10 +344,6 @@ sub diffreport {
   printf " %2d: %s\n", $to,   strftime("%F %H:%M", localtime($to_epoch));
   print "\n";
 
-  # make sure hostname is defined and add wildcard
-  $hostname ||= "";
-  $hostname .= "%";
-
   foreach my $href (@tables) {
     # i must say i'm pleased with this line :-)
     my @colspec = (\'| ', map { ($_, \' | ') } split(/,/, $href->{columns}));
@@ -357,9 +364,9 @@ sub diffreport {
     /;
 
     # get data from the runs
-    my $old = $db->select_aref($stmt, $from, $hostname)
+    my $old = $db->select_aref($stmt, $from, $search_host)
       or die "Couldn't get data from the run $from\n";
-    my $new = $db->select_aref($stmt, $to, $hostname)
+    my $new = $db->select_aref($stmt, $to, $search_host)
       or die "Couldn't get data from the run $to\n";
 
     # only keep those rows in old and new where the hostname is in
@@ -575,19 +582,23 @@ sub isisreport {
 #---
 
 sub getrun {
-  my ($run, $count) = @_;
-  # run ==  0 => get id of last runs
+  my ($run, $count, $hostname) = @_;
+  # run ==  0 => get id of last run
   # run == -1 => get id of $count last runs
   # else => check if run exist
 
-  $count ||= 999999;    # safe default
+  # safe defaults
+  $count //= 999999;
+  $hostname //= '%';
+  my $quoted_host = $db->quote($hostname);
+  
   my ($stmt, $arg);
 
   given ($run) {
     when ($_ == 0) {
       $stmt = q/
         SELECT run, epoch 
-        FROM runs 
+        FROM runs
         ORDER BY run DESC 
         LIMIT 1
       /;
@@ -595,9 +606,14 @@ sub getrun {
 
     when ($_ == -1) {
       $stmt = qq/
-        SELECT run, epoch 
+        SELECT DISTINCT runs.run, epoch 
         FROM runs 
-        ORDER BY run DESC 
+        JOIN route_summary
+        WHERE 
+          route_summary.run = runs.run
+        AND 
+          route_summary.hostname LIKE $quoted_host
+        ORDER BY runs.run DESC 
         LIMIT $count
       /;
     }
@@ -736,7 +752,7 @@ netreport -- Prints a report of the data captured by L<netaudit(1)>
 
 =head1 SYNOPSIS
 
-netreport [options] [hostname] [--help | --man]
+netreport  [--help | --man] [options] [--] [hostname]
 
  --help   Show brief help text
  --man    Show full man page
@@ -744,7 +760,9 @@ netreport [options] [hostname] [--help | --man]
 =head1 DESCRIPTION
 
 Print a report of the collected data from one or more L<netaudit(1)> runs. 
-Only one mode can be chosen at a time.
+The default is to run in C<--diff> mode, either over the devices in last two 
+runs (if no C<hostname> on command-line), or the last two runs where there
+is data for C<hostname>.
 
 =head1 OPTIONS
 
@@ -784,28 +802,37 @@ hierarchy of config files.
 
 The format of the config file is specified in L<netaudit(1)>
 
+=item B<hostname>
+
+Run the report only for I<hostname>.
+There is no need to write the I<hostname> as a FQDN, as long as
+the part given is unique.
+If L<netreport> gets confused by the I<hostname> put a '--' as
+an argument before the B<hostname> on the command line.
+
 =back
 
 =head2 Modes of operation
 
 =over
 
-=item B<-d> LIST | B<--diff>=LIST
+=item B<-d> [NUM[,NUM]] | B<--diff>[=NUM[,NUM]]
 
 Select which runs the report should be be based on.
-Default (if no LIST) is to show the difference between the
+This is the default mode.
+Default (if no NUM) is to show the difference between the
 two last runs.
 
-If a I<hostname> is specified the report is only run for that
-particular host.
+If a I<hostname> is specified on the command line, the B<diff> will be
+run over the two last runs where I<hostname> has some collected data.
+Otherwise the B<diff> is done for the hosts in both last two runs.
 
 =item B<-f> [NUM] | B<--full>[=NUM]
 
 Show a full report, i.e. all collected data, from a single run.
 Default (when no NUM) is to print the report from the last run.
 
-If a I<hostname> is specified the report is only run for that
-particular host.
+Accepts a I<hostname> as parameter for pruning the report.
 
 =item B<--hosts>
 
@@ -823,9 +850,9 @@ Default (when no NUM) is to print the report from the last run.
 Lists the NUM last runs stored in the database. Without a NUM all runs
 are printed.
 
-=item B<-p> LIST | B<--purge>=LIST
+=item B<-p> RANGE | B<--purge>=RANGE
 
-Remove the runs from the database matching LIST
+Remove the runs from the database matching RANGE
 
 =item B<--runs>
 
@@ -834,23 +861,30 @@ are stored data in the database.
 
 =back
 
-=head1 LISTS
+=head1 Numerical arguments to the modes
 
-Each LIST is made up of a range. A LIST is one of:
-
-     N    Select the runs from N'th to last run
-
-   N-M    Select the runs from N'th to M'th (included)
-
-When purging runs the most useful LIST is I<N-M>. If you would like to remove 
-the oldest data you can use I<0> instead of I<N>, i.e the option will be 
-I<--purge=0-M>
+=head2 NUM
 
 Each NUM is a single number, and may consist of either:
 
      N    Select the N'th run
 
      0    Select the last run
+
+
+=head2 RANGE
+
+Each RANGE is made up of a start and stop run. 
+A RANGE is one of:
+
+     N    Select the runs from N'th to last run
+
+   N-M    Select the runs from N'th to M'th (included)
+
+When purging runs the most useful RANGE is I<N-M>. If you would like to remove 
+the oldest data you can use I<0> instead of I<N>, i.e the option will be 
+I<--purge=0-M>
+
 
 =head1 AUTHOR
 

@@ -1,3 +1,9 @@
+3.1 -- 2013-02-17
+	'--diff' mode is default in netreport. If no hostname is given
+	on command-line run diff over the hosts in both last 2 runs. If
+	a hostname IS given, run diff over last 2 runs with data for the
+	hostname.
+
 3.0.3 -- 2013-02-09
 	Fixed problem logging an undefined sysDescr
 
