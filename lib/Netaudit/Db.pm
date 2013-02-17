@@ -318,6 +318,21 @@ sub gethosts {
 }
 
 
+=head2 C<quote>
+
+  $str = $db->quote("Don't");
+
+Returns the string as a literal value to be used in SQL statements.
+This sub is just a wrapper around DBI->quote.
+
+=cut
+
+sub quote {
+  my ($self, $str) = @_;
+  return $self->_dbh->quote($str);
+}
+
+
 sub _getrun {
   my ($self, $run) = @_;
 
