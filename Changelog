@@ -1,3 +1,13 @@
+3.1.1 -- 2013-02-21
+	* netreport --diff:
+	Fixed searching for a partial specified hostname
+	Fixed error output when run is not found in
+	Added error output if there is no last two runs for a hostname
+	* netreport --full:
+	Added partital hostname heuretics from --diff
+	* netreport --list:
+	Fixed problem when no argument to --list is given
+
 3.1 -- 2013-02-17
 	'--diff' mode is default in netreport. If no hostname is given
 	on command-line run diff over the hosts in both last 2 runs. If
