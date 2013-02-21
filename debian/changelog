@@ -1,3 +1,9 @@
+netaudit (3.1.1-1) precise; urgency=low
+
+  * New upstream version
+
+ -- Per Carlson <pelle@hemmop.com>  Thu, 21 Feb 2013 10:54:39 +0100
+
 netaudit (3.1-1) precise; urgency=low
 
   * New upstream version
