@@ -99,7 +99,7 @@ GetOptions(
   'help|?',
   'hosts!',           # lists which runs each host is in
   'isis:0',           # check if isis v4 and v6 have same topology
-  'list:i',           # list runs
+  'list:99999',       # list runs
   'man',
   'purge=s',          # purge runs
   'runs!',            # lists which hosts in each run
@@ -217,15 +217,35 @@ sub runhosts {
 #---
 
 sub fullreport {
-  my ($run, $hostname) = @_;
+  my ($run_arg, $hostname_arg) = @_;
 
-  # add wildcard to hostname
-  $hostname ||= "";
-  $hostname .= "%";
+  my $hostname;
+  my $have_hostname_arg = defined $hostname_arg;
+  if ($have_hostname_arg) {
+    $hostname = $hostname_arg . '%';
+  }
+  else {
+    $hostname = '%';
+  }
 
-  my $epoch;
-  ($run, $epoch) = getrun($run)
-    or die "Run $run do not exist. Use --list to view available runs.\n";
+  my ($run, $epoch) = getrun($run_arg);
+  unless ($run) {
+    if ($run_arg == 0) {
+      die "There are no runs in the database\n";
+    }
+    else {
+      die "Run '$run_arg' do not exist. Use --list to view available runs.\n";
+    }
+  }
+
+  # which hosts did we collect data from in the run
+  my @hosts = gethosts($run);
+
+  # do @hosts contain our host?
+  if ($have_hostname_arg) {
+    die "'$hostname_arg' doesn't exist in run $run\n" 
+      if (scalar grep { m{ ^ $hostname_arg }xms } @hosts) == 0;
+  }
 
   printf "Full report of the audit run at: %s\n\n",
     strftime("%F %H:%M", localtime($epoch));
@@ -266,51 +286,52 @@ sub fullreport {
 #---
 
 sub diffreport {
-  my ($compare, $hostname) = @_;
-  my ($from, $from_epoch, $to, $to_epoch, @hosts, $search_host);
+  my ($compare, $hostname_arg) = @_;
+  my ($from, $from_epoch, $to, $to_epoch, @hosts, $hostname);
 
   # grab the unmodified hostname
-  my $have_hostname_arg = defined $hostname;
+  my $have_hostname_arg = defined $hostname_arg;
   if ($have_hostname_arg) {
-    $search_host = $hostname; 
-    $search_host .= '%' unless $hostname =~ /%/;
+    $hostname = $hostname_arg . '%'; 
   }
   else {
-    $search_host = '%';
+    $hostname = '%';
   }
 
   if ($compare eq '' || $compare eq "0") {
     # get the two last runs
-    ($to, $to_epoch, $from, $from_epoch) = getrun(-1, 2, $search_host);
+    ($to, $to_epoch, $from, $from_epoch) = getrun(-1, 2, $hostname);
+    die "Can't find two runs for '$hostname_arg'\n" unless ($to && $from);
   }
   else {
-    ($from, $to) = ($compare =~ m{ ^ (\d+) (?: [-,] (\d+))* $ }xms);
+    my ($f, $t) = ($compare =~ m{ ^ (\d+) (?: [-,] (\d+))* $ }xms);
     die "Illegal compare argument: $compare\n"
-      unless defined($from);
+      unless defined($f);
 
     # get from run
-    ($from, $from_epoch) = getrun($from);
+    ($from, $from_epoch) = getrun($f);
 
     # if $to is defied, use it. an empty to mean the "last run"
-    ($to, $to_epoch) = defined $to ? getrun($to) : getrun(0);
+    ($to, $to_epoch) = defined $t ? getrun($t) : getrun(0);
+  
+    die "Run $f does not exist\n" unless $from;
+    die "Run $t does not exist\n" unless $to;
   }
-
-  die "Run $from does not exist\n" unless $from;
-  die "Run $to does not exist\n"   unless $to;
 
   # which hosts did we collect data from in the runs
   my @from_hosts = gethosts($from);
   my @to_hosts   = gethosts($to);
 
-  # if a hostname is given, just check that the host
-  # is in both @from_hosts and @to_hosts
+  # if a hostname is given, check that the host
+  # is unique in both @from_hosts and @to_hosts
+  # also out that hostname in the list of @hosts
+  # we are looking for
   if ($have_hostname_arg) {
-    die "$hostname doesn't exists in run $from\n"
-      unless grep { m{ ^ $hostname }xms } @from_hosts;
-    die "$hostname doesn't exists in run $to\n"
-      unless grep { m{ ^ $hostname }xms } @to_hosts;
-    # store our hostname in list of hosts to look for
-    @hosts = ( $hostname );
+    @hosts = grep { m{ ^ $hostname_arg }xms } @from_hosts;
+    die "'$hostname_arg' isn't unique in run $from\n" if @hosts > 1; 
+
+    @hosts = grep { m{ ^ $hostname_arg }xms } @to_hosts;
+    die "'$hostname_arg' isn't unique in run $to\n" if @hosts > 1; 
   }
 
   # if no host is given, run the diff over the hosts which
@@ -364,9 +385,9 @@ sub diffreport {
     /;
 
     # get data from the runs
-    my $old = $db->select_aref($stmt, $from, $search_host)
+    my $old = $db->select_aref($stmt, $from, $hostname)
       or die "Couldn't get data from the run $from\n";
-    my $new = $db->select_aref($stmt, $to, $search_host)
+    my $new = $db->select_aref($stmt, $to, $hostname)
       or die "Couldn't get data from the run $to\n";
 
     # only keep those rows in old and new where the hostname is in
