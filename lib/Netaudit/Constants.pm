@@ -11,7 +11,7 @@ package Netaudit::Constants;
 use strict;
 use warnings;
 
-use version; our $VERSION = qv('3.1');
+use version; our $VERSION = qv('3.1.1');
 
 use base qw{ Exporter };
 our @EXPORT = qw{
