@@ -9,35 +9,36 @@ my $build = Module::Build->new (
   module_name => 'netaudit',
   license => 'perl',
   script_files => ['bin/netaudit', 'bin/netreport'],
-  configure_requires => { 
-    'Module::Build' => 0, 
+  configure_requires => {
+    'Module::Build' => 0,
   },
   requires => {
     'perl' => '5.010',
-    'Net::Telnet' => 0,
-    'NetAddr::IP' => 0,
-    'Net::SNMP' => 0,
-    'Mojolicious' => 0,
-    'IO::Prompt' => 0,
-    'Regexp::Common' => 0,
-    'Regexp::IPv6' => 0,
-    'DBI' => 0,
-    'DBD::SQLite' => '1.26_05',  # depending on foreign keys
-    'Text::Table' => 0,
+
     'Algorithm::Diff' => 0,
     'Config::Simple' => 0,
-    'Readonly' => 0, 
+    'DBD::SQLite' => '1.26_05',  # depending on foreign keys
+    'DBI' => 0,
+    'IO::Prompt' => 0,
+    'Net::SNMP' => 0,
+    'Net::Telnet' => 0,
+    'NetAddr::IP' => 0,
+    'Moo' => '1.001',
+    'Readonly' => 0,
+    'Regexp::Common' => 0,
+    'Regexp::IPv6' => 0,
+    'Text::Table' => 0,
   },
   recommends => {
     # having those enables colored output
-    'Text::Aligner' => '0.06',  
+    'Text::Aligner' => '0.06',
     'Term::ANSIColor' => '2.01',
   },
-  share_files => { 
+  share_files => {
     'share/upgrade1.x-2.1' => 'share/upgrade1.x-2.1',
   },
-  doc_files   => { 
-    map( ($_ => catfile('doc', $_) ), qw[ TODO INSTALL UPGRADE ]) 
+  doc_files   => {
+    map( ($_ => catfile('doc', $_) ), qw[ TODO INSTALL UPGRADE ])
   },
 );
 

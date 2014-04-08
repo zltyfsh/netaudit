@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012, Per Carlson
+# Copyright (c) 2012,2014 Per Carlson
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the same terms as Perl 5.14. For more details,
@@ -8,21 +8,25 @@
 
 package Netaudit::Audit;
 
-use Mojo::Base -base;
+use List::Util qw{ first };
+use Module::Pluggable require => 1, search_path => ['Netaudit::Plugin'];
 use Net::Telnet;
 use Term::ANSIColor;
-use Module::Pluggable require => 1, search_path => ['Netaudit::Plugin'];
-use List::Util qw{ first };
 
 use Netaudit::Db;
 use Netaudit::SNMP;
 use Netaudit::Constants;
 use Netaudit::Log;
 
+use Moo;
+use namespace::clean;
+
 # Public attributes
 
-# Database handle
-has 'database';
+has database => (
+  is  => 'ro',
+  isa => InstanceOf['DBI'],
+);
 
 # Config hash
 has 'config';
@@ -35,10 +39,14 @@ has '_log' => sub {
   my $log_file = $self->config->log_file // '/dev/null';
   my $log = Netaudit::Log->new(path => $log_file);
   $log->level($self->config->log_level);
- 
+
   return $log;
 };
 
+has _snmp => (
+  is  => 'rw',
+  isa => InstanceOf['NetAudit::SNMP'],
+);
 
 # Methods
 
@@ -95,7 +103,7 @@ sub run {
 
   # try to login
   unless ($cli->login(
-    Name     => $self->config->username, 
+    Name     => $self->config->username,
     Password => $self->config->password,
     Errmode  => "return",
   )) {
