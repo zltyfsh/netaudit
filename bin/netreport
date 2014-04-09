@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# Copyright (c) 2012, Per Carlson
+# Copyright 2012,2013,2014 Per Carlson
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the same terms as Perl 5.14. For more details,
@@ -913,7 +913,7 @@ Per Carlson L<< <pelle@hemmop.com> >>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2012 Per Carlson.
+Copyright 2012,2013,2014 Per Carlson.
 
 This application is free software; you can redistribute it and/or modify it
 under the same terms as Perl 5.14 itself.
