@@ -255,6 +255,12 @@ If the C</prefix> is omitted, a host-address is used (i.e. a C</32> prefix).
 For a IP-address to be used, there I<must> be a a mapping from the IP to
 a hostname in the reverse zone. 
 
+=item B<timeout> = I<telnet timeout>
+
+The timeout in seconds when querying a device using telnet, i.e how long time
+does a command maximum take to run.
+Default is 30.
+
 =item B<username> = I<username>
 
 The username to use when logging in on a device.
