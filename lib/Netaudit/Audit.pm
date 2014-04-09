@@ -54,7 +54,6 @@ sub run {
   if (!$snmp) {
     say colored("Host $host is unreachable: $@", "red");
     $self->_log->error("Host $host is unreachable: $@");
-    eval { $snmp->close(); };    # clean up gracefully
     return;
   }
 
