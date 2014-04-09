@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012, Per Carlson
+# Copyright 2012,2013,2014 Per Carlson
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the same terms as Perl 5.14. For more details,
@@ -31,7 +31,7 @@ for both netaudit and netreport.
 It tries to open the config file given in ->new, and
 if that fails tries to find one in standard places.
 
-The content of the config file must adhere to the 
+The content of the config file must adhere to the
 specification in L<Config::Simple>.
 
 =cut
@@ -84,11 +84,13 @@ has 'password';
 
 
 # A reference to an array with IP-ranges.
-# Each IP-range is given on the format 'prefix/prefix_length', 
+# Each IP-range is given on the format 'prefix/prefix_length',
 # i.e. '10.0.0.0/24'.
 # Default is an empty array reference.
 has 'range' => sub { [] };
 
+# The telnet timeout
+has 'timeout' => 30;
 
 # the log_level to use. default is "error"
 has 'log_level' => 'error';
@@ -157,6 +159,7 @@ sub new {
   $self->password($cfg->param('password'))   if $cfg->param('password');
   $self->log_level($cfg->param('log_level')) if $cfg->param('log_level');
   $self->log_file($cfg->param('log_file'))   if $cfg->param('log_file');
+  $self->timeout($cfg->param('timeout'))     if $cfg->param('timeout');
 
   return $self;
 }
