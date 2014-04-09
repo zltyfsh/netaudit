@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012, Per Carlson
+# Copyright 2012,2013,2014 Per Carlson
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the same terms as Perl 5.14. For more details,
@@ -11,7 +11,7 @@ package Netaudit::Constants;
 use strict;
 use warnings;
 
-use version; our $VERSION = qv('3.1.1');
+use version; our $VERSION = qv('3.2');
 
 use base qw{ Exporter };
 our @EXPORT = qw{

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012, Per Carlson
+# Copyright 2012,2013,2014 Per Carlson
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the same terms as Perl 5.14. For more details,
@@ -35,7 +35,7 @@ has '_log' => sub {
   my $log_file = $self->config->log_file // '/dev/null';
   my $log = Netaudit::Log->new(path => $log_file);
   $log->level($self->config->log_level);
- 
+
   return $log;
 };
 
@@ -54,7 +54,6 @@ sub run {
   if (!$snmp) {
     say colored("Host $host is unreachable: $@", "red");
     $self->_log->error("Host $host is unreachable: $@");
-    eval { $snmp->close(); };    # clean up gracefully
     return;
   }
 
@@ -87,15 +86,15 @@ sub run {
   # bump telnet buffer (10 MByte)
   $cli->max_buffer_length(10 * 1024 * 1024);
 
-  # increase command timeout to 30s
-  $cli->timeout(30);
+  # Set the timeout
+  $cli->timeout($self->config->timeout);
 
   # set prompt
   $cli->prompt($plugin->prompt) if $plugin->prompt;
 
   # try to login
   unless ($cli->login(
-    Name     => $self->config->username, 
+    Name     => $self->config->username,
     Password => $self->config->password,
     Errmode  => "return",
   )) {
