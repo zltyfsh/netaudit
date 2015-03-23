@@ -1,6 +1,6 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 #
-# Copyright 2012,2013,2014 Per Carlson
+# Copyright 2012-2015 Per Carlson
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the same terms as Perl 5.14. For more details,
@@ -27,6 +27,9 @@ use Netaudit::Config;
 
 # set version for getopt auto_version
 our $VERSION = $Netaudit::Constants::VERSION;
+
+# A hostname regexp
+my $HOST_RE = qr/ [a-z] [-.a-z0-9]+ /ix;
 
 # AoH of tables and their options
 # Note: When adding an table, Hostname MUST always be first column
@@ -165,7 +168,7 @@ else {
 
 exit;
 
-#---
+# Modes
 
 sub hostruns {
   # get the list of hostnames
@@ -189,8 +192,6 @@ sub hostruns {
   }
 }
 
-#---
-
 sub runhosts {
   # get the list of runs
   my $stmt = q/
@@ -208,13 +209,11 @@ sub runhosts {
   /;
   # loop over the runs picking up the hosts
   foreach my $run (@runs) {
-    my (undef, $epoch) = getrun($run);
+    my (undef, $epoch) = _getrun($run);
     printf "Run: %s (%s)\n", $run, strftime("%F %H:%M", localtime($epoch));
-    print "Hosts: ", join(", ", gethosts($run)), "\n\n";
+    print "Hosts: ", join(", ", _gethosts($run)), "\n\n";
   }
 }
-
-#---
 
 sub fullreport {
   my ($run_arg, $hostname_arg) = @_;
@@ -228,7 +227,7 @@ sub fullreport {
     $hostname = '%';
   }
 
-  my ($run, $epoch) = getrun($run_arg);
+  my ($run, $epoch) = _getrun($run_arg);
   unless ($run) {
     if ($run_arg == 0) {
       die "There are no runs in the database\n";
@@ -239,7 +238,7 @@ sub fullreport {
   }
 
   # which hosts did we collect data from in the run
-  my @hosts = gethosts($run);
+  my @hosts = _gethosts($run);
 
   # do @hosts contain our host?
   if ($have_hostname_arg) {
@@ -251,15 +250,10 @@ sub fullreport {
     strftime("%F %H:%M", localtime($epoch));
 
   foreach my $href (@tables) {
-    my @colspec = (\'| ', map { ($_, \' | ') } split(/,/, $href->{columns}));
-    # replace the last col attribute with one without a trailing space
-    $colspec[-1] = \' |';
-    my $table = Text::Table->new(@colspec);
+    my $table = Text::Table->new(_create_colspec($href->{columns}));
 
-    my $lc_columns = lc $href->{columns};
-    my $stmt       = qq/
-      SELECT $lc_columns
-      FROM $href->{table} 
+    my $stmt = qq/
+      SELECT * FROM $href->{table} 
       WHERE 
         run = ? 
       AND 
@@ -283,100 +277,411 @@ sub fullreport {
   return;
 }
 
-#---
-
 sub diffreport {
-  my ($compare, $hostname_arg) = @_;
-  my ($from, $from_epoch, $to, $to_epoch, @hosts, $hostname);
+  my ($diff_arg, $host_arg) = @_;
+  my ($from, $from_epoch, $to, $to_epoch, @hosts, $from_host, $to_host);
 
-  # grab the unmodified hostname
-  my $have_hostname_arg = defined $hostname_arg;
-  if ($have_hostname_arg) {
-    $hostname = $hostname_arg . '%'; 
+  my $sub_mode;
+
+  # grab the unmodified host
+  my $have_host_arg = defined $host_arg;
+  if ($have_host_arg) {
+    $from_host = $host_arg . '%'; 
   }
   else {
-    $hostname = '%';
+    $from_host = '%';
   }
 
-  if ($compare eq '' || $compare eq "0") {
+  # Submode 1 (diff over same host), with default arguments
+  if ($diff_arg eq '' || $diff_arg eq "0") {
+    $sub_mode = 1;
+
     # get the two last runs
-    ($to, $to_epoch, $from, $from_epoch) = getrun(-1, 2, $hostname);
-    die "Can't find two runs for '$hostname_arg'\n" unless ($to && $from);
+    ($to, $to_epoch, $from, $from_epoch) = _getrun(-1, 2, $from_host);
+    die "Can't find two runs for '$host_arg'\n" unless ($to && $from);
+
+    # No difference between from and to_host
+    $to_host = $from_host;
   }
-  else {
-    my ($f, $t) = ($compare =~ m{ ^ (\d+) (?: [-,] (\d+))* $ }xms);
-    die "Illegal compare argument: $compare\n"
-      unless defined($f);
+
+  # Submode 1 (diff over same host), with arguments
+  elsif ($diff_arg =~ /^ (\d+) (?: [-,] (\d+))? $/x) {
+    $sub_mode = 1;
+
+    my ($f, $t) = ($1, $2);
+    # get from run
+    ($from, $from_epoch) = _getrun($f);
+
+    # if $to is defined, use it. an empty $to mean the "last run"
+    ($to, $to_epoch) = defined $t ? _getrun($t) : _getrun(0);
+
+    _die_with_no_such_run($f) unless $from;
+    _die_with_no_such_run($t) unless $to;
+
+    # No difference between from and to_host
+    $to_host = $from_host;
+  }
+
+  # Submode 2: two hostnames, and one or two runs
+  elsif ($diff_arg =~ /^ ($HOST_RE) , (\d+) , ($HOST_RE) (?: , (\d+))? $/x) {
+    $sub_mode = 2;
+
+    my ($f, $t);
+    ($from_host, $f, $to_host, $t) = ($1, $2, $3, $4);
 
     # get from run
-    ($from, $from_epoch) = getrun($f);
+    ($from, $from_epoch) = _getrun($f);
 
-    # if $to is defied, use it. an empty to mean the "last run"
-    ($to, $to_epoch) = defined $t ? getrun($t) : getrun(0);
-  
-    die "Run $f does not exist\n" unless $from;
-    die "Run $t does not exist\n" unless $to;
+    # if $to is defined, use it. an empty $to mean $from
+    ($to, $to_epoch) = defined $t ? _getrun($t) : ($from, $from_epoch);
+
+    _die_with_no_such_run($f) unless $from;
+    _die_with_no_such_run($t) unless $to;
+  }
+
+  else {
+    die "Illegal --diff argument: $diff_arg\n";
   }
 
   # which hosts did we collect data from in the runs
-  my @from_hosts = gethosts($from);
-  my @to_hosts   = gethosts($to);
+  my @from_hosts = _gethosts($from);
+  my @to_hosts   = _gethosts($to);
 
-  # if a hostname is given, check that the host
-  # is unique in both @from_hosts and @to_hosts
-  # also out that hostname in the list of @hosts
-  # we are looking for
-  if ($have_hostname_arg) {
-    @hosts = grep { m{ ^ $hostname_arg }xms } @from_hosts;
-    die "'$hostname_arg' isn't unique in run $from\n" if @hosts > 1; 
+  if ($submode == 1) {
+    # if a host is given, check that the host
+    # is unique in both @from_hosts and @to_hosts
+    # also out that host in the list of @hosts
+    # we are looking for
+    if ($have_host_arg) {
+      @hosts = grep { /^$host_arg/ } @from_hosts;
+      die "'$host_arg' isn't unique in run $from\n" if @hosts > 1; 
 
-    @hosts = grep { m{ ^ $hostname_arg }xms } @to_hosts;
-    die "'$hostname_arg' isn't unique in run $to\n" if @hosts > 1; 
+      @hosts = grep { /^$host_arg/ } @to_hosts;
+      die "'$host_arg' isn't unique in run $to\n" if @hosts > 1; 
+    }
+
+    # if no host is given, run the diff over the hosts which
+    # are in both runs
+    else {
+      # calculate the intersection and symmetric difference
+      # of the hosts, i.e. the hosts present in both runs, and
+      # those in only one run
+      # code from receipe 4.8 in perl cookbook
+      my @isect_hosts = ();
+      my @diff_hosts  = ();
+      my %count;
+      foreach my $e (@from_hosts, @to_hosts) { $count{$e}++ }
+      foreach my $e (keys %count) {
+        push @{$count{$e} == 2 ? \@isect_hosts : \@diff_hosts}, $e;
+      }
+
+      if (@diff_hosts) {
+        print "The hosts in the runs do not overlap completly. Only comparing\n";
+        print "hosts audited in both runs. Those are:\n";
+        map { print " - $_\n"; } @isect_hosts;
+        print "\n";
+      }
+
+      # store the isect_hosts in the list of hosts to look for
+      @hosts = @isect_hosts;
+    }
   }
 
-  # if no host is given, run the diff over the hosts which
-  # are in both runs
+  # Submode 2
   else {
-    # calculate the intersection and symmetric difference
-    # of the hosts, i.e. the hosts present in both runs, and
-    # those in only one run
-    # code from receipe 4.8 in perl cookbook
-    my @isect_hosts = ();
-    my @diff_hosts  = ();
-    my %count;
-    foreach my $e (@from_hosts, @to_hosts) { $count{$e}++ }
-    foreach my $e (keys %count) {
-      push @{$count{$e} == 2 ? \@isect_hosts : \@diff_hosts}, $e;
-    }
-
-    if (@diff_hosts) {
-      print "The hosts in the runs do not overlap completly. Only comparing\n";
-      print "hosts audited in both runs. Those are:\n";
-      map { print " - $_\n"; } @isect_hosts;
-      print "\n";
-    }
-
-    # store the isect_hosts in the list of hosts to look for
-    @hosts = @isect_hosts;
   }
 
   print "Comparing the results from the audit runs\n";
   printf " %2d: %s\n", $from, strftime("%F %H:%M", localtime($from_epoch));
   printf " %2d: %s\n", $to,   strftime("%F %H:%M", localtime($to_epoch));
   print "\n";
+}
+
+sub purgeruns {
+  my ($start, $stop) = @_;
+
+  # if any of the ranges are undef, use same value as other end
+  # (one run is selected)
+  $start = $stop  unless defined $start;
+  $stop  = $start unless defined $stop;
+
+  return
+    unless prompt("Purging runs from $start to $stop? [y/n] ", '-1y');
+
+  my $rows =
+    $db->dostmt("DELETE FROM runs WHERE run BETWEEN ? AND ?", $start, $stop);
+  printf "Deleted %d runs from database\n", $rows;
+
+  return;
+}
+
+sub listruns {
+  my ($count) = @_;
+
+  my @runs = _getrun(-1, $count)
+    or die "Didn't find any matching runs\n";
+
+  printf "%3s | %s\n", "run", "datetime";
+  while (my ($r, $e) = splice(@runs, 0, 2)) {
+    printf "%3d | %s\n", $r, strftime("%F %H:%M", localtime($e));
+  }
+  return;
+}
+
+sub isisreport {
+  my ($run) = @_;
+
+  my $epoch;
+  ($run, $epoch) = _getrun($run)
+    or die "Run $run do not exist. Use --list to view available runs.\n";
+
+  printf "ISIS topology audit of the run at: %s\n\n",
+    strftime("%F %H:%M", localtime($epoch));
+
+  my $v4stmt = q/ 
+    SELECT hostname, host, interface, metric 
+    FROM isis_topology 
+    WHERE 
+      afi = 'ipv4'
+    AND 
+      run = ? 
+  /;
+
+  my $v4 = eval { $db->select_aref($v4stmt, $run) };
+  die "SQL statement failed: $@\n" if $@;
+  die "No data found\n" unless $v4;
+
+  my $v6stmt = q/
+    SELECT metric
+    FROM isis_topology
+    WHERE 
+      afi = 'ipv6'
+    AND 
+      hostname = ?
+    AND 
+      host = ?
+    AND 
+      interface = ? 
+    AND 
+      run = ?
+  /;
+
+  my @colspec = (
+    \'| ', map { ($_, \' | ') } qw{ Hostname Host Interface IPv4 },
+    "IPv6", \' |'
+  );
+  my $table = Text::Table->new(@colspec);
+
+  foreach my $row (@{$v4}) {
+    my ($hostname, $host, $interface, $v4metric) = @{$row};
+    my ($v6metric) =
+      eval { $db->select_row($v6stmt, $hostname, $host, $interface, $run); };
+    $v6metric ||= "-";
+
+    if ($v4metric ne $v6metric) {
+      $table->add($hostname, $host, $interface, $v4metric, $v6metric);
+    }
+  }
+
+  if ($table->body_height > 0) {
+    print $table->title;
+    print $table->rule('-', '+');
+    print $table->body;
+  }
+  else {
+    print "Gratulations! No inconsistencies in the topologies\n";
+  }
+  print "\n";
+
+  return;
+}
+
+sub numerical {
+  my @vals = @_;
+
+  my $ok = 1;
+  foreach (@vals) {
+    return 0 if !defined $_;    # an undef is never numerical
+    $ok &&= $_ =~ /^ \s* -* \d+ \s* $/xms;
+  }
+  return $ok;
+}
+
+#---
+
+sub formattuple {
+  my ($old, $new) = @_;
+
+  # if any of old or new is numerical, calculate the difference
+  if (numerical($old) || numerical($new)) {
+    # make sure both is numerical
+    $old = 0 if !numerical($old);
+    $new = 0 if !numerical($new);
+    my $diff  = $new - $old;
+    my $color = "reset";
+    $color = "green" if $diff > 0;
+    $color = "red"   if $diff < 0;
+    my $str = sprintf "[% +d]", $diff;
+    return sprintf "%6d %s", $new, colorize($str, $color);
+  }
+
+  # if both old and new are empty, return empty string
+  elsif (!$old && !$new) {
+    return "";
+  }
+
+  # print both strings
+  else {
+    my ($oldcolor, $newcolor);
+    $oldcolor = $newcolor = "reset";
+    if ($old =~ /down/i && $new =~ /up/i) {
+      $oldcolor = "red";
+      $newcolor = "green";
+    }
+    if ($old =~ /up/i && $new =~ /down/i) {
+      $oldcolor = "green";
+      $newcolor = "red";
+    }
+    return sprintf "%s [%s]", colorize($new, $newcolor),
+      colorize($old, $oldcolor);
+  }
+}
+
+#---
+
+sub formatitem {
+  my ($item) = @_;
+
+  # any undef? make them defined
+  if (!defined $item) {
+    $item = numerical($item) ? 0 : "";
+  }
+
+  # ok, time to generate string
+  if (numerical($item)) {
+    return sprintf "%6d", $item;
+  }
+  else {
+    return sprintf "%6s", $item;
+  }
+}
+
+#---
+
+sub formatlist {
+  my @items = @_;
+  return map { formatitem($_) } @items;
+}
+
+#---
+
+sub colorize {
+  my ($str, $color) = @_;
+
+  return $opts{colors} ? colored($str, $color) : $str;
+}
+
+# Helper subs
+
+sub _create_colspec {
+  my $columns = shift;
+
+  my @colspec = (\'| ', map { ($_, \' | ') } split(/,/, $columns));
+  # replace the last col attribute with one without a trailing space
+  $colspec[-1] = \' |';
+
+  return @colspec;
+}
+
+sub _gethosts {
+  my ($run) = @_;
+
+  my $stmt = q/
+    SELECT DISTINCT hostname 
+    FROM route_summary 
+    WHERE run = ?
+  /;
+  my @hosts = $db->select_column($stmt, $run);
+
+  return @hosts;
+}
+
+sub _getrun {
+  my ($run, $count, $hostname) = @_;
+  # run ==  0 => get id of last run
+  # run == -1 => get id of $count last runs
+  # else => check if run exist
+
+  # safe defaults
+  $count //= 999999;
+  $hostname //= '%';
+  my $quoted_host = $db->quote($hostname);
+  
+  my ($stmt, $arg);
+
+  given ($run) {
+    when ($_ == 0) {
+      $stmt = q/
+        SELECT run, epoch 
+        FROM runs
+        ORDER BY run DESC 
+        LIMIT 1
+      /;
+    }
+
+    when ($_ == -1) {
+      $stmt = qq/
+        SELECT DISTINCT runs.run, epoch 
+        FROM runs 
+        JOIN route_summary
+        WHERE 
+          route_summary.run = runs.run
+        AND 
+          route_summary.hostname LIKE $quoted_host
+        ORDER BY runs.run DESC 
+        LIMIT $count
+      /;
+    }
+
+    default {
+      $stmt = qq/
+        SELECT run, epoch
+        FROM runs 
+        WHERE run = $run
+      /;
+    }
+  }
+
+  my $aref = eval { $db->select_aref($stmt) };
+  die $@ if $@;
+
+  my @result;
+  if ($aref) {
+    foreach my $rref (@{$aref}) {
+      push(@result, @{$rref});
+    }
+  }
+
+  return wantarray ? @result : $result[0];
+}
+
+sub _die_with_no_such_run {
+  my $run = shift;
+  die "Run $run do not exist\n";
+}
+
+
+sub _run_diff {
+  my ($from, $to, $from_hostname, $to_hostname) = @_;
+
+  # If no to_hostname, use same as $from_hostname
+  $to_hostname //= $from_hostname;
 
   foreach my $href (@tables) {
-    # i must say i'm pleased with this line :-)
-    my @colspec = (\'| ', map { ($_, \' | ') } split(/,/, $href->{columns}));
-    # replace the last col attribute with one without a trailing space
-    $colspec[-1] = \' |';
+    my $table = Text::Table->new(_create_colspec($href->{columns}));
 
-    my $table = Text::Table->new(@colspec);
-
-    my $lc_columns = lc $href->{columns};
-    my $stmt       = qq/
-      SELECT $lc_columns
-      FROM $href->{table}
+    my $stmt = qq/
+      SELECT * FROM $href->{table}
       WHERE 
         run = ? 
       AND 
@@ -385,9 +690,9 @@ sub diffreport {
     /;
 
     # get data from the runs
-    my $old = $db->select_aref($stmt, $from, $hostname)
+    my $old = $db->select_aref($stmt, $from, $from_hostname)
       or die "Couldn't get data from the run $from\n";
-    my $new = $db->select_aref($stmt, $to, $hostname)
+    my $new = $db->select_aref($stmt, $to, $to_hostname)
       or die "Couldn't get data from the run $to\n";
 
     # only keep those rows in old and new where the hostname is in
@@ -395,8 +700,8 @@ sub diffreport {
     my $helper = sub {
       return scalar grep { /^$_[0]$/ } @hosts;
     };
-    @{$old} = grep { &$helper($$_[0]) } @{$old};
-    @{$new} = grep { &$helper($$_[0]) } @{$new};
+    @{$old} = grep { $helper->($$_[0]) } @{$old};
+    @{$new} = grep { $helper->($$_[0]) } @{$new};
 
     # when running the diff, we can't compare the rows with data directly.
     # instead, create a stringified representation of each row, and
@@ -495,274 +800,6 @@ sub diffreport {
   return;
 }
 
-#---
-
-sub purgeruns {
-  my ($start, $stop) = @_;
-
-  # if any of the ranges are undef, use same value as other end
-  # (one run is selected)
-  $start = $stop  unless defined $start;
-  $stop  = $start unless defined $stop;
-
-  return
-    unless prompt("Purging runs from $start to $stop? [y/n] ", '-1y');
-
-  my $rows =
-    $db->dostmt("DELETE FROM runs WHERE run BETWEEN ? AND ?", $start, $stop);
-  printf "Deleted %d runs from database\n", $rows;
-
-  return;
-}
-
-#---
-
-sub listruns {
-  my ($count) = @_;
-
-  my @runs = getrun(-1, $count)
-    or die "Didn't find any matching runs\n";
-
-  printf "%3s | %s\n", "run", "datetime";
-  while (my ($r, $e) = splice(@runs, 0, 2)) {
-    printf "%3d | %s\n", $r, strftime("%F %H:%M", localtime($e));
-  }
-  return;
-}
-
-#---
-
-sub isisreport {
-  my ($run) = @_;
-
-  my $epoch;
-  ($run, $epoch) = getrun($run)
-    or die "Run $run do not exist. Use --list to view available runs.\n";
-
-  printf "ISIS topology audit of the run at: %s\n\n",
-    strftime("%F %H:%M", localtime($epoch));
-
-  my $v4stmt = q/ 
-    SELECT hostname, host, interface, metric 
-    FROM isis_topology 
-    WHERE 
-      afi = 'ipv4'
-    AND 
-      run = ? 
-  /;
-
-  my $v4 = eval { $db->select_aref($v4stmt, $run) };
-  die "SQL statement failed: $@\n" if $@;
-  die "No data found\n" unless $v4;
-
-  my $v6stmt = q/
-    SELECT metric
-    FROM isis_topology
-    WHERE 
-      afi = 'ipv6'
-    AND 
-      hostname = ?
-    AND 
-      host = ?
-    AND 
-      interface = ? 
-    AND 
-      run = ?
-  /;
-
-  my @colspec = (
-    \'| ', map { ($_, \' | ') } qw{ Hostname Host Interface IPv4 },
-    "IPv6", \' |'
-  );
-  my $table = Text::Table->new(@colspec);
-
-  foreach my $row (@{$v4}) {
-    my ($hostname, $host, $interface, $v4metric) = @{$row};
-    my ($v6metric) =
-      eval { $db->select_row($v6stmt, $hostname, $host, $interface, $run); };
-    $v6metric ||= "-";
-
-    if ($v4metric ne $v6metric) {
-      $table->add($hostname, $host, $interface, $v4metric, $v6metric);
-    }
-  }
-
-  if ($table->body_height > 0) {
-    print $table->title;
-    print $table->rule('-', '+');
-    print $table->body;
-  }
-  else {
-    print "Gratulations! No inconsistencies in the topologies\n";
-  }
-  print "\n";
-
-  return;
-}
-
-#---
-
-sub getrun {
-  my ($run, $count, $hostname) = @_;
-  # run ==  0 => get id of last run
-  # run == -1 => get id of $count last runs
-  # else => check if run exist
-
-  # safe defaults
-  $count //= 999999;
-  $hostname //= '%';
-  my $quoted_host = $db->quote($hostname);
-  
-  my ($stmt, $arg);
-
-  given ($run) {
-    when ($_ == 0) {
-      $stmt = q/
-        SELECT run, epoch 
-        FROM runs
-        ORDER BY run DESC 
-        LIMIT 1
-      /;
-    }
-
-    when ($_ == -1) {
-      $stmt = qq/
-        SELECT DISTINCT runs.run, epoch 
-        FROM runs 
-        JOIN route_summary
-        WHERE 
-          route_summary.run = runs.run
-        AND 
-          route_summary.hostname LIKE $quoted_host
-        ORDER BY runs.run DESC 
-        LIMIT $count
-      /;
-    }
-
-    default {
-      $stmt = qq/
-        SELECT run, epoch
-        FROM runs 
-        WHERE run = $run
-      /;
-    }
-  }
-
-  my $aref = eval { $db->select_aref($stmt) };
-  die $@ if $@;
-
-  my @result;
-  if ($aref) {
-    foreach my $rref (@{$aref}) {
-      push(@result, @{$rref});
-    }
-  }
-
-  return wantarray ? @result : $result[0];
-}
-
-#---
-
-sub gethosts {
-  my ($run) = @_;
-
-  my $stmt = q/
-    SELECT DISTINCT hostname 
-    FROM route_summary 
-    WHERE run = ?
-  /;
-  my @hosts = $db->select_column($stmt, $run);
-
-  return @hosts;
-}
-
-#---
-
-sub numerical {
-  my @vals = @_;
-
-  my $ok = 1;
-  foreach (@vals) {
-    return 0 if !defined $_;    # an undef is never numerical
-    $ok &&= $_ =~ /^ \s* -* \d+ \s* $/xms;
-  }
-  return $ok;
-}
-
-#---
-
-sub formattuple {
-  my ($old, $new) = @_;
-
-  # if any of old or new is numerical, calculate the difference
-  if (numerical($old) || numerical($new)) {
-    # make sure both is numerical
-    $old = 0 if !numerical($old);
-    $new = 0 if !numerical($new);
-    my $diff  = $new - $old;
-    my $color = "reset";
-    $color = "green" if $diff > 0;
-    $color = "red"   if $diff < 0;
-    my $str = sprintf "[% +d]", $diff;
-    return sprintf "%6d %s", $new, colorize($str, $color);
-  }
-
-  # if both old and new are empty, return empty string
-  elsif (!$old && !$new) {
-    return "";
-  }
-
-  # print both strings
-  else {
-    my ($oldcolor, $newcolor);
-    $oldcolor = $newcolor = "reset";
-    if ($old =~ /down/i && $new =~ /up/i) {
-      $oldcolor = "red";
-      $newcolor = "green";
-    }
-    if ($old =~ /up/i && $new =~ /down/i) {
-      $oldcolor = "green";
-      $newcolor = "red";
-    }
-    return sprintf "%s [%s]", colorize($new, $newcolor),
-      colorize($old, $oldcolor);
-  }
-}
-
-#---
-
-sub formatitem {
-  my ($item) = @_;
-
-  # any undef? make them defined
-  if (!defined $item) {
-    $item = numerical($item) ? 0 : "";
-  }
-
-  # ok, time to generate string
-  if (numerical($item)) {
-    return sprintf "%6d", $item;
-  }
-  else {
-    return sprintf "%6s", $item;
-  }
-}
-
-#---
-
-sub formatlist {
-  my @items = @_;
-  return map { formatitem($_) } @items;
-}
-
-#---
-
-sub colorize {
-  my ($str, $color) = @_;
-
-  return $opts{colors} ? colored($str, $color) : $str;
-}
-
 __DATA__
 
 =pod
@@ -786,8 +823,6 @@ runs (if no C<hostname> on command-line), or the last two runs where there
 is data for C<hostname>.
 
 =head1 OPTIONS
-
-=head2 General parameters
 
 =over
 
@@ -833,47 +868,82 @@ an argument before the B<hostname> on the command line.
 
 =back
 
-=head2 Modes of operation
+=head1 MODES OF OPERATION
+
+=head2 B<Diff mode>
+
+The I<diff mode> can be run in two different ways (or sub-modes): 
+report the difference for a I<specific> host between two runs, 
+and comparing two I<different> hosts at same or different runs.
+
+If the tool is used for checking the state of a host before and after
+a certain event (e.g. a software upgrade) the first sub-mode is used.
+
+The use case for the second sub-mode is checking states if for example
+all services are moved from one host to another.
 
 =over
 
-=item B<-d> [NUM[,NUM]] | B<--diff>[=NUM[,NUM]]
+=item B<-d> [RUN[,RUN]] | B<--diff>[=RUN[,RUN]]
+
+This is the first sub-mode.
 
 Select which runs the report should be be based on.
 This is the default mode.
-Default (if no NUM) is to show the difference between the
+Default (if no RUN) is to show the difference between the
 two last runs.
 
 If a I<hostname> is specified on the command line, the B<diff> will be
 run over the two last runs where I<hostname> has some collected data.
 Otherwise the B<diff> is done for the hosts in both last two runs.
 
-=item B<-f> [NUM] | B<--full>[=NUM]
+=item B<-d> I<hostname1>,RUN1,I<hostname2>[,RUN2] | B<--diff>=I<hostname1>,RUN1,I<hostname2>[,RUN2]
+
+This is the second sub-mode.
+
+Report the the difference between I<hostname1> at I<RUN1> 
+and I<hostname2> at I<RUN1> (or I<RUN2> if specified).
+
+=back
+
+=head2 B<Full report>
+
+=over
+
+=item B<-f> [RUN] | B<--full>[=RUN]
 
 Show a full report, i.e. all collected data, from a single run.
-Default (when no NUM) is to print the report from the last run.
+Default (when no RUN) is to print the report from the last run.
 
 Accepts a I<hostname> as parameter for pruning the report.
+
+=back
+
+=head2 B<ISIS>
+
+=over
+
+=item B<-i> [RUN] | B<--isis>[=RUN]
+
+Compare the ISIS topologies for IPv4 and IPv6, and report any
+differences in outgoing interfaces and/or metrics.
+Default (when no RUN) is to print the report from the last run.
+
+=back
+
+=head2 B<Queries>
+
+=over
 
 =item B<--hosts>
 
 For each host in the database print the runs which there
 are stored data in the database.
 
-=item B<-i> [NUM] | B<--isis>[=NUM]
+=item B<--list>[=RUN]
 
-Compare the ISIS topologies for IPv4 and IPv6, and report any
-differences in outgoing interfaces and/or metrics.
-Default (when no NUM) is to print the report from the last run.
-
-=item B<--list>[=NUM]
-
-Lists the NUM last runs stored in the database. Without a NUM all runs
+Lists the RUN last runs stored in the database. Without a RUN all runs
 are printed.
-
-=item B<-p> RANGE | B<--purge>=RANGE
-
-Remove the runs from the database matching RANGE
 
 =item B<--runs>
 
@@ -882,14 +952,21 @@ are stored data in the database.
 
 =back
 
-=head1 Numerical arguments to the modes
+=head2 B<Delete runs from database>
 
-=head2 NUM
+=item B<-p> RANGE | B<--purge>=RANGE
 
-Each NUM is a single number, and may consist of either:
+Remove the runs from the database matching RANGE
+
+=back
+
+=head1 NUMERICAL ARGUMENTS
+
+=head2 RUN
+
+Each RUN is a single number, and may consist of either:
 
      N    Select the N'th run
-
      0    Select the last run
 
 
@@ -899,13 +976,11 @@ Each RANGE is made up of a start and stop run.
 A RANGE is one of:
 
      N    Select the runs from N'th to last run
-
    N-M    Select the runs from N'th to M'th (included)
 
 When purging runs the most useful RANGE is I<N-M>. If you would like to remove 
 the oldest data you can use I<0> instead of I<N>, i.e the option will be 
 I<--purge=0-M>
-
 
 =head1 AUTHOR
 
@@ -913,7 +988,7 @@ Per Carlson L<< <pelle@hemmop.com> >>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2012,2013,2014 Per Carlson.
+Copyright 2012-2015 Per Carlson.
 
 This application is free software; you can redistribute it and/or modify it
 under the same terms as Perl 5.14 itself.
