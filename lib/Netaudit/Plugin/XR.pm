@@ -15,6 +15,8 @@ use Regexp::IPv6 qw{ $IPv6_re };
 
 use Netaudit::Constants;
 
+no if $] >= 5.017011, warnings => 'experimental::smartmatch';
+
 ### RegExps ###
 
 my $PROMPT   = '/RP.*\/CPU\d+:[-\p{Alnum}\.]+#\s*/';

@@ -11,6 +11,8 @@ use strict;
 use warnings;
 use feature 'switch';
 
+no if $] >= 5.017011, warnings => 'experimental::smartmatch';
+
 use FindBin;
 use lib "$FindBin::Bin/../lib/";
 use lib "$FindBin::Bin/../lib/perl5";

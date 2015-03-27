@@ -16,6 +16,8 @@ use Regexp::IPv6 qw{ $IPv6_re };
 use Netaudit::Constants;
 use Netaudit::DNS;
 
+no if $] >= 5.017011, warnings => 'experimental::smartmatch';
+
 ### RegExps ###
 
 my $PROMPT   = '/> $/';
