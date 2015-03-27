@@ -1,0 +1,10 @@
+[PerlTidy]
+select = lib/**/*.pm
+select = bin/*
+argv = --profile=$ROOT/.perltidyrc
+
+[PerlCritic]
+select = lib/**/*.pm
+select = script/*
+argv = --harsh
+except_modes = tidy

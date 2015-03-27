@@ -3,3 +3,4 @@ MYMETA.*
 _build/
 blib/
 tmp/
+.tidyall.d/
