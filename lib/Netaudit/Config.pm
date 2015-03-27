@@ -52,6 +52,7 @@ my @CONFIGFILES = (
 #<<<
 
 
+
 =head1 ATTRIBUTES
 
 =head2 C<filename>
@@ -98,6 +99,7 @@ has 'log_level' => 'error';
 
 # the log_file to use. default is /dev/null
 has 'log_file';
+
 
 
 =head1 METHODS

@@ -27,7 +27,7 @@ Netaudit::SNMP - SNMP framework and polling of standards MIBs
 
 =head1 DESCRIPTION
 
-Netaudit::SNMP provides a simple framework for C<get> an OID, C<walk> a SNMP-table 
+Netaudit::SNMP provides a simple framework for C<get> an OID, C<walk> a SNMP-table
 and C<get_columns> from a SNMP-table.
 
 Additionally there are ready made subs for collecting data from standard
@@ -46,7 +46,7 @@ use Netaudit::DNS;
 
 my $oid = {
   # from SNMPv2 MIB
-  'sysDescr'  => '.1.3.6.1.2.1.1.1.0',    # scalar
+  'sysDescr' => '.1.3.6.1.2.1.1.1.0',    # scalar
 
   'interface' => {
     # from IF-MIB
@@ -102,10 +102,7 @@ my $vc_status = {
 };
 
 # From IP-MIB
-my $ip_status = {
-  '1' => "up",
-  '2' => "down",
-};
+my $ip_status = {'1' => "up", '2' => "down",};
 
 # From IANAifTypeMIB
 my $if_types = [
@@ -292,7 +289,7 @@ sub walk {
   my $value = $snmp->get($oid);
 
 Get a a single OID value.
-Returns undef is the OID doesn't exist, else the 
+Returns undef is the OID doesn't exist, else the
 value at the OID.
 
 =cut
@@ -361,7 +358,7 @@ sub sysdescr {
   my $interface = $snmp->interface($cb);
 
 Walks the IF-MIB interfaces table and for each row returned
-calls the callback C<cb> with the row (indexed by ifIndex) 
+calls the callback C<cb> with the row (indexed by ifIndex)
 content as an hash reference.
 The hash reference contain the following keys:
 
@@ -373,11 +370,11 @@ The description of the interface (ifDescr)
 
 =item C<mtu>
 
-The interface MTU (ifMtu) 
+The interface MTU (ifMtu)
 
 =item C<speed>
 
-The interface speed (ifHighSpeed) in bits per second. 
+The interface speed (ifHighSpeed) in bits per second.
 
 =item C<adminstatus>
 
@@ -449,15 +446,15 @@ sub interface {
     my $v6status = $href->{'ipv6InterfaceEnableStatus'}->{$i} || "";
 
     # call callback with our data
-    &$cb({
-      descr       => $href->{'ifDescr'}->{$i},
-      mtu         => $href->{'ifMtu'}->{$i},
-      adminstatus => $if_status->{$href->{'ifAdminStatus'}->{$i}},
-      operstatus  => $if_status->{$href->{'ifOperStatus'}->{$i}},
+    $cb->({
+        descr       => $href->{'ifDescr'}->{$i},
+        mtu         => $href->{'ifMtu'}->{$i},
+        adminstatus => $if_status->{$href->{'ifAdminStatus'}->{$i}},
+        operstatus  => $if_status->{$href->{'ifOperStatus'}->{$i}},
 
-      #	ipv4status  => $ipEnableStatus { $v6status },
-      ipv6status => $ip_status->{$v6status},
-      speed      => $href->{'ifHighSpeed'}->{$i},
+        #	ipv4status  => $ipEnableStatus { $v6status },
+        ipv6status => $ip_status->{$v6status},
+        speed      => $href->{'ifHighSpeed'}->{$i},
     });
   }
 
@@ -477,7 +474,7 @@ sub interface {
   my $pwe3 = $snmp->pwe3($cb);
 
 Walks pwTable in PW-STD-MIB and for each row returned
-calls the callback C<cb> with the row (indexed by pwIndex) content as an 
+calls the callback C<cb> with the row (indexed by pwIndex) content as an
 hash reference.
 The hash reference contain the following keys:
 
@@ -497,8 +494,8 @@ a hostname.
 
 =item C<status>
 
-The cwoperationaladministrative status of the pseudewire (pwOperStatus) 
-as a string ("up", "down", "testing", "dormant", "notPresent", or 
+The cwoperationaladministrative status of the pseudewire (pwOperStatus)
+as a string ("up", "down", "testing", "dormant", "notPresent", or
 "lowerLayerDown").
 
 =back
@@ -565,11 +562,8 @@ sub pwe3 {
     $peer   = $self->ip2dot($peer);
     $peer   = gethostname($peer);
 
-    &$cb({
-      peer      => $peer,
-      interface => $ifname,
-      status    => $vc_status->{$status},
-    });
+    $cb->(
+      {peer => $peer, interface => $ifname, status => $vc_status->{$status},});
   }
 
   return 1;
@@ -588,7 +582,7 @@ sub pwe3 {
   my $vrf = $snmp->vrf($cb);
 
 Walks mplsL3VpnVrfTable in MPLS-L3VPN-STD-MIB and for each row returned
-(indexed by mplsL3VpnVrfname) calls the callback C<cb> with the row content 
+(indexed by mplsL3VpnVrfname) calls the callback C<cb> with the row content
 as an hash reference.
 The hash reference contain the following keys:
 
@@ -646,10 +640,10 @@ sub vrf {
   my $vrfs_assoc = $self->walk($mib->{'AssociatedInterfaces'});
 
   foreach my $k (keys %{$vrfs_active}) {
-    &$cb({
-      vrf        => $self->chr2str($k),
-      active     => $vrfs_active->{$k} || 0,
-      associated => $vrfs_assoc->{$k}  || 0,
+    $cb->({
+        vrf => $self->chr2str($k),
+        active     => $vrfs_active->{$k} || 0,
+        associated => $vrfs_assoc->{$k}  || 0,
     });
   }
 
@@ -678,6 +672,4 @@ sub _strip_oid {
   return $result;
 }
 
-
 1;
-

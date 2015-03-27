@@ -73,7 +73,8 @@ sub run {
   $self->_log->debug("$host plugin=$plugin");
   if (!$plugin) {
     say colored("Don't know how to handle $host based on sysDescr", "red");
-    $self->_log->error("Don't know how to handle $host based on sysDescr ($sysdescr)");
+    $self->_log->error(
+      "Don't know how to handle $host based on sysDescr ($sysdescr)");
     return;
   }
 
@@ -95,11 +96,13 @@ sub run {
   $cli->prompt($plugin->prompt) if $plugin->prompt;
 
   # try to login
-  unless ($cli->login(
-    Name     => $self->config->username,
-    Password => $self->config->password,
-    Errmode  => "return",
-  )) {
+  unless (
+    $cli->login(
+      Name     => $self->config->username,
+      Password => $self->config->password,
+      Errmode  => "return",
+    ))
+  {
     say colored("Can't login to $host: " . $cli->errmsg, "red");
     $self->_log->error("Can't login to $host: " . $cli->errmsg);
     return;
@@ -139,15 +142,13 @@ sub ok {
   my $str;
 
   for ($result) {
-    when ($AUDIT_OK)     { $str = colored("done",          "green"); }
-    when ($AUDIT_NODATA) { $str = colored("no data",       "green"); }
-    when ($AUDIT_FAIL)   { $str = colored("fail",          "red"); }
-    default              { $str = colored("unimplemented", "red"); };
+    when ($AUDIT_OK)     { $str = colored("done",          "green") }
+    when ($AUDIT_NODATA) { $str = colored("no data",       "green") }
+    when ($AUDIT_FAIL)   { $str = colored("fail",          "red") }
+    default              { $str = colored("unimplemented", "red") }
   }
 
   return sprintf "[%s]\n", $str;
 }
-
-#---
 
 1;

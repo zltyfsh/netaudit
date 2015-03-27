@@ -91,7 +91,7 @@ my %opts = (
 );
 
 Getopt::Long::Configure("auto_version");
-
+#<<<
 GetOptions(
   \%opts,
   'colors|C!',        # use colors in output
@@ -106,6 +106,7 @@ GetOptions(
   'purge=s',          # purge runs
   'runs!',            # lists which hosts in each run
 ) or pod2usage(2);
+#<<<
 pod2usage(1) if $opts{help};
 pod2usage(-exitval => 2, -verbose => 2) if $opts{man};
 
@@ -175,8 +176,7 @@ sub hostruns {
     SELECT DISTINCT hostname 
     FROM route_summary
   /;
-  my @hosts = $db->select_column($stmt)
-    or die "No hosts in database.\n";
+  my @hosts = $db->select_column($stmt) or die "No hosts in database.\n";
 
   $stmt = q/
     SELECT DISTINCT run 
@@ -199,8 +199,7 @@ sub runhosts {
     SELECT run 
     FROM runs
   /;
-  my @runs = $db->select_column($stmt)
-    or die "No hosts in database.\n";
+  my @runs = $db->select_column($stmt) or die "No hosts in database.\n";
 
   $stmt = q/
     SELECT DISTINCT hostname 
@@ -245,8 +244,8 @@ sub fullreport {
 
   # do @hosts contain our host?
   if ($have_hostname_arg) {
-    die "'$hostname_arg' doesn't exist in run $run\n" 
-      if (scalar grep { m{ ^ $hostname_arg }xms } @hosts) == 0;
+    die "'$hostname_arg' doesn't exist in run $run\n"
+      if (scalar grep {m{ ^ $hostname_arg }xms} @hosts) == 0;
   }
 
   printf "Full report of the audit run at: %s\n\n",
@@ -294,7 +293,7 @@ sub diffreport {
   # grab the unmodified hostname
   my $have_hostname_arg = defined $hostname_arg;
   if ($have_hostname_arg) {
-    $hostname = $hostname_arg . '%'; 
+    $hostname = $hostname_arg . '%';
   }
   else {
     $hostname = '%';
@@ -307,15 +306,14 @@ sub diffreport {
   }
   else {
     my ($f, $t) = ($compare =~ m{ ^ (\d+) (?: [-,] (\d+))* $ }xms);
-    die "Illegal compare argument: $compare\n"
-      unless defined($f);
+    die "Illegal compare argument: $compare\n" unless defined($f);
 
     # get from run
     ($from, $from_epoch) = getrun($f);
 
     # if $to is defied, use it. an empty to mean the "last run"
     ($to, $to_epoch) = defined $t ? getrun($t) : getrun(0);
-  
+
     die "Run $f does not exist\n" unless $from;
     die "Run $t does not exist\n" unless $to;
   }
@@ -329,11 +327,11 @@ sub diffreport {
   # also out that hostname in the list of @hosts
   # we are looking for
   if ($have_hostname_arg) {
-    @hosts = grep { m{ ^ $hostname_arg }xms } @from_hosts;
-    die "'$hostname_arg' isn't unique in run $from\n" if @hosts > 1; 
+    @hosts = grep {m{ ^ $hostname_arg }xms} @from_hosts;
+    die "'$hostname_arg' isn't unique in run $from\n" if @hosts > 1;
 
-    @hosts = grep { m{ ^ $hostname_arg }xms } @to_hosts;
-    die "'$hostname_arg' isn't unique in run $to\n" if @hosts > 1; 
+    @hosts = grep {m{ ^ $hostname_arg }xms} @to_hosts;
+    die "'$hostname_arg' isn't unique in run $to\n" if @hosts > 1;
   }
 
   # if no host is given, run the diff over the hosts which
@@ -395,7 +393,7 @@ sub diffreport {
     # only keep those rows in old and new where the hostname is in
     # the hosts list
     my $helper = sub {
-      return scalar grep { /^$_[0]$/ } @hosts;
+      return scalar grep {/^$_[0]$/} @hosts;
     };
     @{$old} = grep { &$helper($$_[0]) } @{$old};
     @{$new} = grep { &$helper($$_[0]) } @{$new};
@@ -414,8 +412,8 @@ sub diffreport {
     my $shortkeycolumns = $href->{order} =~ tr/,//;
     foreach my $aref (@{$old}, @{$new}) {
       my $fullkey = join(";", map { $_ || "" } @{$aref});
-      my $shortkey =
-        join(";", map { $_ || "" } @{$aref}[0 .. $shortkeycolumns]);
+      my $shortkey
+        = join(";", map { $_ || "" } @{$aref}[ 0 .. $shortkeycolumns ]);
       push(@{$aref}, $shortkey, $fullkey);
     }
 
@@ -432,7 +430,7 @@ sub diffreport {
         my $item = @{$element}[2];
         # copy "shortkey" to key and drop "fullkey"
         my ($key, undef) = splice(@{$item}, -2);
-        push(@{$HoA{$key}}, [$op, $item]);
+        push(@{$HoA{$key}}, [ $op, $item ]);
       }
     }
 
@@ -507,11 +505,10 @@ sub purgeruns {
   $start = $stop  unless defined $start;
   $stop  = $start unless defined $stop;
 
-  return
-    unless prompt("Purging runs from $start to $stop? [y/n] ", '-1y');
+  return unless prompt("Purging runs from $start to $stop? [y/n] ", '-1y');
 
-  my $rows =
-    $db->dostmt("DELETE FROM runs WHERE run BETWEEN ? AND ?", $start, $stop);
+  my $rows
+    = $db->dostmt("DELETE FROM runs WHERE run BETWEEN ? AND ?", $start, $stop);
   printf "Deleted %d runs from database\n", $rows;
 
   return;
@@ -522,8 +519,7 @@ sub purgeruns {
 sub listruns {
   my ($count) = @_;
 
-  my @runs = getrun(-1, $count)
-    or die "Didn't find any matching runs\n";
+  my @runs = getrun(-1, $count) or die "Didn't find any matching runs\n";
 
   printf "%3s | %s\n", "run", "datetime";
   while (my ($r, $e) = splice(@runs, 0, 2)) {
@@ -580,8 +576,8 @@ sub isisreport {
 
   foreach my $row (@{$v4}) {
     my ($hostname, $host, $interface, $v4metric) = @{$row};
-    my ($v6metric) =
-      eval { $db->select_row($v6stmt, $hostname, $host, $interface, $run); };
+    my ($v6metric)
+      = eval { $db->select_row($v6stmt, $hostname, $host, $interface, $run); };
     $v6metric ||= "-";
 
     if ($v4metric ne $v6metric) {
@@ -611,10 +607,10 @@ sub getrun {
   # else => check if run exist
 
   # safe defaults
-  $count //= 999999;
+  $count    //= 999999;
   $hostname //= '%';
   my $quoted_host = $db->quote($hostname);
-  
+
   my ($stmt, $arg);
 
   given ($run) {

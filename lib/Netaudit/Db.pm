@@ -8,7 +8,7 @@
 
 package Netaudit::Db;
 
-=pod 
+=pod
 
 =head1 NAME
 
@@ -18,9 +18,7 @@ Netaudit::Db - SQLite3 datebase interaction
 
   use Netaudit::Db;
 
-  my $dbh = Netaudit::Db->new(
-    database => 'my.db',
-  );
+  my $dbh = Netaudit::Db->new(database => 'my.db');
 
   $dbh->newrun;
   $dbh->hostname('foo');
@@ -31,7 +29,7 @@ Netaudit::Db - SQLite3 datebase interaction
 
 =head1 DESCRIPTION
 
-Netaudit::Db is mostly a wrapper around DBI to make selects a bit 
+Netaudit::Db is mostly a wrapper around DBI to make selects a bit
 easier.
 Probably this would be obtained even easier by using DBIx::Simple,
 but that's an opportunity in future releases :-)
@@ -59,7 +57,6 @@ The filename with the SQLite3 database.
 
 has 'database';
 
-
 =head2 C<hostname>
 
 The hostname for which subsequent inserts are stored for.
@@ -74,7 +71,6 @@ has 'hostname';
 # The current run for which database entries are stored at.
 has '_run';
 
-
 # The handle to the database
 has '_dbh';
 
@@ -83,9 +79,7 @@ has '_dbh';
 
 =head2 C<new>
 
-  my $db = NetAudit::Db->new(
-    database  => 'my.db',
-  );
+  my $db = NetAudit::Db->new(database  => 'my.db');
 
 Connects to the SQLite database stored in C<database>.
 If the database doesn't exist, a new one is created.
@@ -98,8 +92,7 @@ sub new {
   my $self = shift->SUPER::new(@_);
 
   my $dbh = DBI->connect("dbi:SQLite:dbname=" . $self->database);
-  die sprintf("Opening database failed: %s", $DBI::errstr)
-    unless ($dbh);
+  die sprintf("Opening database failed: %s", $DBI::errstr) unless $dbh;
 
   $self->_dbh($dbh);
 
@@ -117,7 +110,7 @@ sub new {
   # if we got an answer, check version compability
   if (defined $version) {
     die "The database have a non-compliant version. See UPGRADE\n"
-      unless ($version eq $SCHEMA_VER);
+      unless $version eq $SCHEMA_VER;
   }
 
   # if no answer, the database is probably empty. load schema
@@ -169,8 +162,7 @@ Creates a new unique run in the database.
 
 sub newrun {
   my ($self) = @_;
-  croak("No database connection")
-    unless $self->_dbh;
+  croak("No database connection") unless $self->_dbh;
 
   my $epoch = time();
   my $stmt  = "INSERT INTO runs (epoch) VALUES (?)";
@@ -222,8 +214,7 @@ sub insert {
 sub select_aref {
   my ($self, $stmt, @args) = @_;
 
-  croak("No database connection")
-    unless $self->_dbh;
+  croak("No database connection") unless $self->_dbh;
 
   my $sth = $self->_dbh->prepare($stmt);
   $sth->execute(@args) or croak $sth->errstr;
@@ -245,8 +236,7 @@ Returns the first row matching C<$stmt>/C<@args>.
 sub select_row {
   my ($self, $stmt, @args) = @_;
 
-  croak("No database connection")
-    unless $self->_dbh;
+  croak("No database connection") unless $self->_dbh;
 
   my $sth = $self->_dbh->prepare($stmt);
   $sth->execute(@args) or croak $sth->errstr;
@@ -270,8 +260,7 @@ sub select_column {
   my ($self, $stmt, @args) = @_;
 
   my $aref = $self->_dbh->selectcol_arrayref($stmt, {}, @args);
-  croak "select failed: $self->_dbh->errstr"
-    if $self->_dbh->errstr;
+  croak "select failed: $self->_dbh->errstr" if $self->_dbh->errstr;
   return $aref ? @{$aref} : undef;
 }
 
@@ -281,18 +270,16 @@ sub select_column {
   $rows = $db->dostmt($stmt, @args);
 
 Executes a "do statement" and returns the number of
-affected rows. 
+affected rows.
 
 =cut
 
 sub dostmt {
   my ($self, $stmt, @args) = @_;
 
-  croak("No database connection")
-    unless $self->_dbh;
+  croak("No database connection") unless $self->_dbh;
 
-  my $rows = $self->_dbh->do($stmt, undef, @args)
-    or croak $self->_dbh->errstr;
+  my $rows = $self->_dbh->do($stmt, undef, @args) or croak $self->_dbh->errstr;
 
   return $rows;
 }
@@ -311,8 +298,7 @@ sub gethosts {
 
   return unless $self->_getrun($run);    # check that run exists
   my $stmt = "SELECT hostname FROM device WHERE run = ?";
-  my $aref = $self->select_aref($stmt, $run)
-    or return;
+  my $aref = $self->select_aref($stmt, $run) or return;
 
   return map { $$_[0] } @{$aref};
 }
@@ -337,101 +323,97 @@ sub _getrun {
   my ($self, $run) = @_;
 
   my $stmt = "SELECT * FROM runs WHERE run = ?";
-  my $aref = $self->select_aref($stmt, $run)
-    or return;
+  my $aref = $self->select_aref($stmt, $run) or return;
 
   return 1;
 }
-
 
 1;
 
 __DATA__
 
-
 DROP TABLE IF EXISTS db;
 --
 CREATE TABLE db (
-       version	    INTEGER
+    version   INTEGER
 );
 --
 INSERT INTO db (version) VALUES ('2');
 --
 CREATE TABLE IF NOT EXISTS runs (
-       run 	  INTEGER PRIMARY KEY AUTOINCREMENT,
-       epoch	TEXT
+    run     INTEGER PRIMARY KEY AUTOINCREMENT,
+    epoch   TEXT
 );
 --
 CREATE TABLE IF NOT EXISTS route_summary (
-       run   	    INTEGER,
-       hostname   TEXT,
-       afi        TEXT,
-       connected  INTEGER,
-       static	    INTEGER,
-       local	    INTEGER,
-       isis	      INTEGER,
-       bgp	      INTEGER,
-       FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
+    run         INTEGER,
+    hostname    TEXT,
+    afi         TEXT,
+    connected   INTEGER,
+    static      INTEGER,
+    local       INTEGER,
+    isis        INTEGER,
+    bgp         INTEGER,
+    FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
 );
 --
 CREATE TABLE IF NOT EXISTS isis_neighbour (
-       run   	    INTEGER,
-       hostname   TEXT,
-       neighbour  TEXT,
-       interface  TEXT,
-       state	    TEXT,
-       FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
-);   
+    run         INTEGER,
+    hostname    TEXT,
+    neighbour   TEXT,
+    interface   TEXT,
+    state       TEXT,
+    FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
+);
 --
 CREATE TABLE IF NOT EXISTS isis_topology (
-       run   	    INTEGER,
-       hostname   TEXT,
-       host    	  TEXT,
-       metric	    INTEGER,
-       interface  TEXT,
-       afi	      TEXT,
-       FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
-);   
+    run         INTEGER,
+    hostname    TEXT,
+    host        TEXT,
+    metric      INTEGER,
+    interface   TEXT,
+    afi         TEXT,
+    FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
+);
 --
 CREATE TABLE IF NOT EXISTS bgp (
-       run   	    INTEGER,
-       hostname   TEXT,
-       peer       TEXT,
-       asn        INTEGER,
-       afi        TEXT,  
-       vrf	      TEXT,
-       prefixes	  INTEGER,
-       FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
-);   
+    run         INTEGER,
+    hostname    TEXT,
+    peer        TEXT,
+    asn         INTEGER,
+    afi         TEXT,
+    vrf         TEXT,
+    prefixes    INTEGER,
+    FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
+);
 --
 CREATE TABLE IF NOT EXISTS interface (
-       run   	      INTEGER,
-       hostname     TEXT,
-       descr	      TEXT,
-       mtu	        INTEGER,
-       adminstatus  TEXT,
-       operstatus   TEXT,
-       ipv4status   TEXT,
-       ipv6status   TEXT,
-       speed	      INTEGER,
-       FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
-);   
+    run           INTEGER,
+    hostname      TEXT,
+    descr         TEXT,
+    mtu           INTEGER,
+    adminstatus   TEXT,
+    operstatus    TEXT,
+    ipv4status    TEXT,
+    ipv6status    TEXT,
+    speed         INTEGER,
+    FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
+);
 --
 CREATE TABLE IF NOT EXISTS pwe3 (
-       run   	    INTEGER,
-       hostname   TEXT,
-       interface  TEXT,
-       status	    TEXT,
-       peer	      TEXT,
-       FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
-);   
+    run         INTEGER,
+    hostname    TEXT,
+    interface   TEXT,
+    status      TEXT,
+    peer        TEXT,
+    FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
+);
 --
 CREATE TABLE IF NOT EXISTS vrf (
-       run   	      INTEGER,
-       hostname     TEXT,
-       vrf	        TEXT,
-       active	      INTEGER,
-       associated   INTEGER,
-       FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
+    run           INTEGER,
+    hostname      TEXT,
+    vrf           TEXT,
+    active        INTEGER,
+    associated    INTEGER,
+    FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
 );
-

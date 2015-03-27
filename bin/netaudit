@@ -57,7 +57,8 @@ else {
   # if we should us a password from config file,
   # it mustn't be readable by anyone but the current user
   my $st = stat($cfg->filename);
-  die "Password set in config file (" . $cfg->filename . "), but file is group/world readable\n"
+  die
+    "Password set in config file (@{[ $cfg->filename ]}), but file is group/world readable\n"
     if (length $cfg->password && $st->mode & 044);
 }
 
@@ -86,8 +87,7 @@ foreach my $arg (@range) {
   for ($arg) {
     # IPv4-range
     when (/$RE{net}{IPv4}/) {
-      my $na = NetAddr::IP->new($arg)
-        or die "Cannot parse IPv4-range $arg\n";
+      my $na = NetAddr::IP->new($arg) or die "Cannot parse IPv4-range $arg\n";
 
       foreach my $ip (@{$na->hostenumref}) {
         my $aton = inet_aton($ip->addr);
@@ -116,10 +116,7 @@ my $dbh = eval { Netaudit::Db->new(database => $cfg->database) };
 die "$@\n" if $@;
 $dbh->newrun;
 
-my $audit = eval { Netaudit::Audit->new(
-  config   => $cfg,
-  database => $dbh,
-)};
+my $audit = eval { Netaudit::Audit->new(config => $cfg, database => $dbh,) };
 die $@ if $@;
 
 foreach my $host (@hosts) {

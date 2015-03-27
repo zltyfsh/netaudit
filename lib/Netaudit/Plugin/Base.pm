@@ -13,13 +13,13 @@ use Carp;
 
 # attributes
 
-has [ qw{ db cli snmp log } ];
+has [qw{ db cli snmp log }];
 
 # methods
 
-sub handles { return }
+sub handles {return}
 
-sub prompt { return }
+sub prompt {return}
 
 # these MUST be overridden by childs
 
@@ -38,4 +38,3 @@ sub vrf { croak "vrf isn't overridden" }
 sub pwe3 { croak "pwe3 isn't overridden" }
 
 1;
-

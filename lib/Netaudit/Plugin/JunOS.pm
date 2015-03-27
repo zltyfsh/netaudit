@@ -20,8 +20,8 @@ no if $] >= 5.017011, warnings => 'experimental::smartmatch';
 
 ### RegExps ###
 
-my $PROMPT   = '/> $/';
-my @HANDLES = (qr{ Juniper \s Networks .* JUNOS }xms);
+my $PROMPT    = '/> $/';
+my @HANDLES   = (qr{ Juniper \s Networks .* JUNOS }xms);
 my $INTERFACE = qr{ (?:xe|ge|so) - \d+ / \d+ / \d+ (?:\. \d+)* }xms;
 
 # SNMP OID's, columns and textual-conventions,
@@ -53,11 +53,7 @@ my %jnxVpnType_Rev = (
   'bgpAtmVpn'  => 10,
 );
 
-my %jnxVpnPwStatus = (
-  '0' => 'unknown',
-  '1' => 'down',
-  '2' => 'up',
-);
+my %jnxVpnPwStatus = ('0' => 'unknown', '1' => 'down', '2' => 'up',);
 
 ##### do this plugin handle the device? #####
 
@@ -134,11 +130,13 @@ sub route_summary {
         $h = undef;
       }
 
-      when (m{ ^ \s+ Direct: .*? (\d+) \s active }xms) { $h->{'connected'} = $1; }
-      when (m{ ^ \s+ Local:  .*? (\d+) \s active }xms) { $h->{'local'}     = $1; }
-      when (m{ ^ \s+ BGP:    .*? (\d+) \s active }xms) { $h->{'bgp'}       = $1; }
-      when (m{ ^ \s+ Static: .*? (\d+) \s active }xms) { $h->{'static'}    = $1; }
-      when (m{ ^ \s+ IS-IS:  .*? (\d+) \s active }xms) { $h->{'isis'}      = $1; }
+      when (m{ ^ \s+ Direct: .*? (\d+) \s active }xms) {
+        $h->{'connected'} = $1;
+      }
+      when (m{ ^ \s+ Local:  .*? (\d+) \s active }xms) { $h->{'local'}  = $1; }
+      when (m{ ^ \s+ BGP:    .*? (\d+) \s active }xms) { $h->{'bgp'}    = $1; }
+      when (m{ ^ \s+ Static: .*? (\d+) \s active }xms) { $h->{'static'} = $1; }
+      when (m{ ^ \s+ IS-IS:  .*? (\d+) \s active }xms) { $h->{'isis'}   = $1; }
     }
   }
 
@@ -170,20 +168,20 @@ sub isis_topology {
     ($HOSTNAME)         # hostname ($1)
     \.
     \d+                 # LSP number
-	  \s+                 
-	  (\d+)               # metric ($2)
-	  \s*                 # not always a space between metric and interface
-	  ($INTERFACE)        # interface ($3)
-	  \s+ 
-	  (IPV4 | IPV6)		    # NH afi, ($4)
+    \s+
+    (\d+)               # metric ($2)
+    \s*                 # not always a space between metric and interface
+    ($INTERFACE)        # interface ($3)
+    \s+
+    (IPV4 | IPV6)       # NH afi, ($4)
   }xmso;
 
   my $RE_ISIS_CONT = qr{
     ^
-    \s+                  
-	  ($INTERFACE)   	# interface ($1)
-	  \s+ 
-	  (\w+)         	# NH afi ($2)
+    \s+
+    ($INTERFACE)    # interface ($1)
+    \s+
+    (\w+)           # NH afi ($2)
   }xmso;
 
   $self->log->info('running "show isis spf brief level 2"');
@@ -269,12 +267,12 @@ sub isis_neighbour {
 
   my $RE_ISIS = qr{
     ($INTERFACE)   # Interface ($1)
-	  \s+
-	  ($HOSTNAME)    # System ($2)
-	  \s+
+    \s+
+    ($HOSTNAME)    # System ($2)
+    \s+
     \d+            # Level
     \s+
-	  (\w+)          # State ($3)
+    (\w+)          # State ($3)
   }xmso;
 
   $self->log->info('running "show isis adjacency"');
@@ -300,11 +298,7 @@ sub isis_neighbour {
       when (m{ ^ Interface }xms) { }
 
       when (/$RE_ISIS/) {
-        my $h = {
-          'interface' => $1,
-          'neighbour' => $2,
-          'state'     => lc($3),
-        };
+        my $h = {'interface' => $1, 'neighbour' => $2, 'state' => lc($3),};
         $self->db->insert('isis_neighbour', $h);
         $self->log->insert('isis_neighbour', $h);
       }
@@ -321,7 +315,7 @@ sub bgp {
 
   my $RE_HEADER = qr{
     ^
-    (?: 
+    (?:
       Groups
       |
       Table
@@ -336,15 +330,15 @@ sub bgp {
 
   my $RE_BGP = qr{
     ^
-    \s+ 
-	  ([\w\.]+)   # afi ($1)
+    \s+
+    ([\w\.]+)   # afi ($1)
     :
-	  \s+
-	  \d+         # active
-	  /
-	  \d+         # received
-	  /
-	  (\d+)       # accepted ($2)
+    \s+
+    \d+         # active
+    /
+    \d+         # received
+    /
+    (\d+)       # accepted ($2)
   }xms;
 
   my ($peer, $asn);
@@ -505,15 +499,14 @@ sub vrf {
   # if that failed try with Juniper MIB
   my $RE_VPN_TABLE = qr{
     (\d+)         # column in the table ($1)
-    \. 
+    \.
     (\d+)         # the vpntype ($2)
     \.
     (.*)          # the vrf name encoded in "dotted ascii" ($3)
     $
   }xmso;
 
-  my $href =
-    $self->snmp->get_columns($jnxVpnTable, $jnxVpnConfiguredSites,
+  my $href = $self->snmp->get_columns($jnxVpnTable, $jnxVpnConfiguredSites,
     $jnxVpnActiveSites);
 
   # give up if no data here either
@@ -532,20 +525,20 @@ sub vrf {
     for ($column) {
       when ($jnxVpnConfiguredSites) {
         $result->{$vrf}->{'associated'} = $href->{$k};
-      };
+      }
 
       when ($jnxVpnActiveSites) {
         $result->{$vrf}->{'active'} = $href->{$k};
-      };
+      }
     }
   }
 
   return $AUDIT_NODATA unless $result;
 
   # store collected data in database
-  map { 
+  map {
     $self->db->insert('vrf', $result->{$_});
-    $self->log->insert('vrf', $result->{$_}); 
+    $self->log->insert('vrf', $result->{$_});
   } keys %{$result};
 
   return $AUDIT_OK;
@@ -568,17 +561,16 @@ sub pwe3 {
   # if that failed try with Juniper MIB
   my $RE_PW_TABLE = qr{
     (\d+)         # column in the table ($1)
-    \. 
+    \.
     (\d+)         # the vpntype ($2)
     \.
     (.*)          # the interface name encoded in "dotted ascii" ($3)
-    \. 
+    \.
     (\d+)         # the pwindex, which isn't the VC ID ($4)
     $
   }xmso;
 
-  my $href =
-    $self->snmp->get_columns($jnxVpnPwTable, $jnxVpnRemotePeIdAddress,
+  my $href = $self->snmp->get_columns($jnxVpnPwTable, $jnxVpnRemotePeIdAddress,
     $jnxVpnPwStatus);
 
   # give up if no data here either
@@ -597,20 +589,20 @@ sub pwe3 {
     for ($column) {
       when ($jnxVpnRemotePeIdAddress) {
         $result->{$index}->{'peer'} = gethostname($href->{$k});
-      };
+      }
 
       when ($jnxVpnPwStatus) {
         $result->{$index}->{'status'} = $jnxVpnPwStatus{$href->{$k}};
-      };
+      }
     }
   }
 
   return $AUDIT_NODATA unless $result;
 
   # store collected data in database
-  map { 
+  map {
     $self->db->insert('pwe3', $result->{$_});
-    $self->log->insert('pwe3', $result->{$_}); 
+    $self->log->insert('pwe3', $result->{$_});
   } keys %{$result};
 
   return $AUDIT_OK;

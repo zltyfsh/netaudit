@@ -29,11 +29,11 @@ my @HANDLES = (
 
 my $MAC = qr! [0-f]{4} \. [0-f]{4} \. [0-f]{4} !xms;
 
-my $INTERFACE = qr{ 
+my $INTERFACE = qr{
   (?:Gi|Fa [a-zA-Z]*)      # interface type
-	\d+ / \d+                # slot / port|module
-	(?: / \d+ )*             # port (if module)
-	(?: \. \d+ )*            # optional sub-interface
+  \d+ / \d+                # slot / port|module
+  (?: / \d+ )*             # port (if module)
+  (?: \. \d+ )*            # optional sub-interface
 }xms;
 
 # SNMP OID's
@@ -89,24 +89,24 @@ sub route_summary {
   my $h;
 
   my $RE_ISIS = qr{
-    ^ 
-    isis 
-    \s+ 
-	  (?: [-a-zA-Z]+ \s+ )*  # optional isis name
-	  (\d+)                  # networks
+    ^
+    isis
     \s+
-	  (\d+)                  # subnets
+    (?: [-a-zA-Z]+ \s+ )*  # optional isis name
+    (\d+)                  # networks
+    \s+
+    (\d+)                  # subnets
   }xms;
 
   my $RE_BGP = qr{
     ^
-    bgp 
-    \s+ 
-	  \d+       # asn
+    bgp
     \s+
-	  (\d+)     # networks
+    \d+       # asn
     \s+
-	  (\d+)     # subnets
+    (\d+)     # networks
+    \s+
+    (\d+)     # subnets
   }xms;
 
   $self->log->info('running "show ip route summary"');
@@ -163,31 +163,31 @@ sub route_summary {
   # and then ipv6
 
   my $RE_v6_ONELINE = qr{
-    ^ 
+    ^
     \s+ (\d+) \s+ local     ,*  # $1
-	  \s+ (\d+) \s+ connected ,*  # $2
-		\s+ (\d+) \s+ static    ,*  # $3
-		\s+  \d+  \s+ RIP       ,*        
-		\s+ (\d+) \s+ BGP       ,*  # $4
-		\s+ (\d+) \s+ IS-IS     ,*  # $5
-		\s+  \d+  \s+ OSPF      ,*       
+    \s+ (\d+) \s+ connected ,*  # $2
+    \s+ (\d+) \s+ static    ,*  # $3
+    \s+  \d+  \s+ RIP       ,*
+    \s+ (\d+) \s+ BGP       ,*  # $4
+    \s+ (\d+) \s+ IS-IS     ,*  # $5
+    \s+  \d+  \s+ OSPF      ,*
   }xms;
 
   my $RE_v6_ISIS = qr{
-    ^ 
+    ^
     isis
-    \s+ 
-	  (?: [-a-zA-Z]+ \s+ )*   # optional isis name
-	  (\d+)                   # networks
+    \s+
+    (?: [-a-zA-Z]+ \s+ )*   # optional isis name
+    (\d+)                   # networks
   }xms;
 
   my $RE_v6_BGP = qr{
     ^
-    bgp 
-    \s+ 
-	  \d+       # asn 
+    bgp
     \s+
-	  (\d+)     # networks
+    \d+       # asn
+    \s+
+    (\d+)     # networks
   }xms;
 
   $self->log->info('running "show ipv6 route summary"');
@@ -268,30 +268,30 @@ sub isis_topology {
   my ($host, $metric);
 
   my $RE_ISIS = qr{
-    ^ 
+    ^
     ($HOSTNAME)      # host, $1
-	  \s+ 
-	  (\d+)            # metric, $2
-	  \s*              # optional space
-	  $HOSTNAME        # next hop router
-	  \s+
-	  ($INTERFACE)     # next hop interface, $3
-	  \s*              # optional space
-	  # if there are some tunneling used, the SNPA will be '*Tunnel*'
-	  # instead of MAC address
-	  (?:$MAC | \*Tunnel\*)
+    \s+
+    (\d+)            # metric, $2
+    \s*              # optional space
+    $HOSTNAME        # next hop router
+    \s+
+    ($INTERFACE)     # next hop interface, $3
+    \s*              # optional space
+    # if there are some tunneling used, the SNPA will be '*Tunnel*'
+    # instead of MAC address
+    (?:$MAC | \*Tunnel\*)
   }xmso;
 
   my $RE_ISIS_CONT = qr{
     ^
-	  \s+              # leading space
-	  $HOSTNAME        # next hop router
-	  \s+
-	  ($INTERFACE)     # next hop interface, $1
-	  \s*              # optional space
-	  # if there are some tunneling used, the SNPA will be '*Tunnel*'
-	  # instead of MAC address
-	  (?:$MAC | \*Tunnel\*)
+    \s+              # leading space
+    $HOSTNAME        # next hop router
+    \s+
+    ($INTERFACE)     # next hop interface, $1
+    \s*              # optional space
+    # if there are some tunneling used, the SNPA will be '*Tunnel*'
+    # instead of MAC address
+    (?:$MAC | \*Tunnel\*)
   }xmso;
 
   # we need two runs here. 12k do support "sh isis * top", but not all 7200
@@ -408,14 +408,14 @@ sub isis_neighbour {
   my ($self) = @_;
 
   my $RE_ISIS = qr{
-    ^ 
+    ^
     ($HOSTNAME)     # hostname ($1)
-	  \s*             # optional space
-	  ($INTERFACE)    # interface ($2)
-	  \s+ 
-    (?: $MAC | \*Tunnel\* ) 
+    \s*             # optional space
+    ($INTERFACE)    # interface ($2)
     \s+
-	  (\w+)           # state ($3)
+    (?: $MAC | \*Tunnel\* )
+    \s+
+    (\w+)           # state ($3)
   }xmso;
 
   $self->log->info('running "show clns neighbors"');
@@ -434,11 +434,7 @@ sub isis_neighbour {
       when (m{ ^ System \s Id }xms) { }
 
       when (/$RE_ISIS/) {
-        my $h = {
-          'neighbour' => $1,
-          'interface' => $2,
-          'state'     => lc($3)
-        };
+        my $h = {'neighbour' => $1, 'interface' => $2, 'state' => lc($3)};
 
         $self->db->insert('isis_neighbour', $h);
         $self->log->insert('isis_neighbour', $h);
@@ -456,14 +452,14 @@ sub bgp {
   my ($peer, $asn, $vrf, $afi);
 
   my $RE_BGP_v4 = qr{
-    ^ 
+    ^
     ($RE{net}{IPv4})   # peer ($1)
     \s+
-	  \d+                # bgp version
+    \d+                # bgp version
     \s+
-	  (\d+)              # asn ($2)
-	  .*?                # filler
-	  (\d+)              # prefixes ($3), we only cares about peers 
+    (\d+)              # asn ($2)
+    .*?                # filler
+    (\d+)              # prefixes ($3), we only cares about peers
                        # with (0 or more) prefixes
     $
   }xmso;
@@ -482,12 +478,7 @@ sub bgp {
 
     for ($line) {
       when (/$RE_BGP_v4/) {
-        my $h = {
-          'peer'     => $1,
-          'asn'      => $2,
-          'afi'      => "ipv4",
-          'prefixes' => $3
-        };
+        my $h = {'peer' => $1, 'asn' => $2, 'afi' => "ipv4", 'prefixes' => $3};
 
         $self->db->insert('bgp', $h);
         $self->log->insert('bgp', $h);
@@ -500,24 +491,24 @@ sub bgp {
   my $RE_BGP_v6 = qr{
     ^
     ($IPv6_re)  # peer ($1)
-    \s+ 
+    \s+
     \d+         # bgp version
     \s+
-	  (\d+)       # asn ($2)
-	  .*?         # filler
-	  (\d+)       # prefixes ($3), we only care about numerical prefixes
-	  $
+    (\d+)       # asn ($2)
+    .*?         # filler
+    (\d+)       # prefixes ($3), we only care about numerical prefixes
+    $
   }xmso;
 
   my $RE_BGP_v6_CONT = qr{
     ^
-    \s+ 
+    \s+
     \d+         # bgp version
     \s+
-	  (\d+)       # asn ($1)
-	  .*?         # filler
-	  (\d+)       # prefixes ($2), we only care about numerical prefixes
-	  $
+    (\d+)       # asn ($1)
+    .*?         # filler
+    (\d+)       # prefixes ($2), we only care about numerical prefixes
+    $
   }xms;
 
   $self->log->info('running "show bgp ipv6 unicast summary"');
@@ -542,12 +533,8 @@ sub bgp {
 
       # ... and get the rest of the parameters
       when (/$RE_BGP_v6_CONT/) {
-        my $h = {
-          'peer'     => $peer,
-          'asn'      => $1,
-          'afi'      => "ipv6",
-          'prefixes' => $2
-        };
+        my $h
+          = {'peer' => $peer, 'asn' => $1, 'afi' => "ipv6", 'prefixes' => $2};
 
         $self->db->insert('bgp', $h);
         $self->log->insert('bgp', $h);
@@ -555,12 +542,7 @@ sub bgp {
 
       # when all are on one line
       when (/$RE_BGP_v6/) {
-        my $h = {
-          'peer'     => $1,
-          'asn'      => $2,
-          'afi'      => "ipv6",
-          'prefixes' => $3
-        };
+        my $h = {'peer' => $1, 'asn' => $2, 'afi' => "ipv6", 'prefixes' => $3};
 
         $self->db->insert('bgp', $h);
         $self->log->insert('bgp', $h);
@@ -571,36 +553,36 @@ sub bgp {
   # and finally vpnv4
 
   my $RE_BGP_vrf = qr{
-    ^ 
-    BGP \s neighbor \s is \s 
-	  ($RE{net}{IPv4})             # peer ($1)
+    ^
+    BGP \s neighbor \s is \s
+    ($RE{net}{IPv4})             # peer ($1)
     ,
-	  \s+ 
+    \s+
     vrf                          # do have a VRF
     \s+
-	  ([^,]+)                      # VRF (anything until next ,) ($2)
+    ([^,]+)                      # VRF (anything until next ,) ($2)
     ,
-	  \s+ remote \s AS \s+
-	  (\d+)                        # asn ($3)
+    \s+ remote \s AS \s+
+    (\d+)                        # asn ($3)
   }xmso;
 
   my $RE_BGP_vpnv4 = qr{
-    ^ 
-    BGP \s neighbor \s is \s 
-	  ($RE{net}{IPv4})             # peer ($1)
+    ^
+    BGP \s neighbor \s is \s
+    ($RE{net}{IPv4})             # peer ($1)
     ,
-	  \s+ remote \s AS \s+
-	  (\d+)                        # asn ($2)
+    \s+ remote \s AS \s+
+    (\d+)                        # asn ($2)
   }xmso;
 
   my $RE_BGP_prefixes = qr{
-    ^ 
-    \s+ 
-    Prefixes \s Current: 
-	  \s+ 
+    ^
+    \s+
+    Prefixes \s Current:
+    \s+
     \d+           # sent
     \s+
-	  (\d+)         # received ($1)
+    (\d+)         # received ($1)
   }xms;
 
   $self->log->info('running "show ip bgp vpnv4 all neighbors"');
@@ -663,12 +645,7 @@ sub bgp {
       when (/$RE_BGP_prefixes/) {
         # we are only interested in vpnv4
         if ($afi eq 'vpnv4') {
-          my $h = {
-            peer     => $peer,
-            asn      => $asn,
-            afi      => "vpnv4",
-            prefixes => $1
-          };
+          my $h = {peer => $peer, asn => $asn, afi => "vpnv4", prefixes => $1};
           $h->{vrf} = $vrf if $vrf;
           $self->db->insert('bgp', $h);
           $self->log->insert('bgp', $h);

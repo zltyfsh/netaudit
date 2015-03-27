@@ -19,14 +19,14 @@ no if $] >= 5.017011, warnings => 'experimental::smartmatch';
 
 ### RegExps ###
 
-my $PROMPT   = '/RP.*\/CPU\d+:[-\p{Alnum}\.]+#\s*/';
+my $PROMPT  = '/RP.*\/CPU\d+:[-\p{Alnum}\.]+#\s*/';
 my @HANDLES = (qr{ Cisco \s IOS \s XR \s Software }xms);
-my $MAC = qr{ [0-f]{4} \. [0-f]{4} \. [0-f]{4} }xms;
+my $MAC     = qr{ [0-f]{4} \. [0-f]{4} \. [0-f]{4} }xms;
 
-my $INTERFACE = qr{ 
+my $INTERFACE = qr{
   (?:Te|Gi [a-zA-Z]*)      # interface type
-	(?:\d+ /){3} \d+         # chassis / slot / module / port 
-	(?:\. \d+ )*             # optional sub-interface
+  (?:\d+ /){3} \d+         # chassis / slot / module / port
+  (?:\. \d+ )*             # optional sub-interface
 }xms;
 
 # SNMP OID's
@@ -144,12 +144,12 @@ sub isis_topology {
   my $RE_ISIS = qr{
     ^
     ($HOSTNAME)       # peer ($1)
-	  \s+
-	  (\d+)             # metric ($2)
-	  \s+
+    \s+
+    (\d+)             # metric ($2)
+    \s+
     $HOSTNAME         # next hop router
     \s+
-	  ($INTERFACE)      # next hop interface ($3)
+    ($INTERFACE)      # next hop interface ($3)
   }xmso;
 
   foreach my $line ($self->cli->cmd("show isis afi-all topology level 2")) {
@@ -186,12 +186,8 @@ sub isis_topology {
 
       # get all entries with numerical metric
       when (/$RE_ISIS/) {
-        my $h = {
-          'host'      => $1,
-          'metric'    => $2,
-          'interface' => $3,
-          'afi'       => $afi,
-        };
+        my $h
+          = {'host' => $1, 'metric' => $2, 'interface' => $3, 'afi' => $afi,};
 
         $self->db->insert('isis_topology', $h);
         $self->log->insert('isis_topology', $h);
@@ -209,13 +205,13 @@ sub isis_neighbour {
   my $RE_ISIS = qr{
     ^
     ($HOSTNAME)                # neighbour, $1
-	  \s+ 
-	  ($INTERFACE)               # interface, $2
-	  \s+ 
-    (?: $MAC | \*PtoP\* ) 
-    \s+     
-	  (\w+)                      # state, $3
-	}xmso;
+    \s+
+    ($INTERFACE)               # interface, $2
+    \s+
+    (?: $MAC | \*PtoP\* )
+    \s+
+    (\w+)                      # state, $3
+  }xmso;
 
   $self->log->info('running "show isis neighbors"');
   foreach my $line ($self->cli->cmd("show isis neighbors")) {
@@ -242,11 +238,7 @@ sub isis_neighbour {
       when (m{^ (?: IS-IS | System \s Id | Total \s neighbour \s count ) }) { }
 
       when (/$RE_ISIS/) {
-        my $h = {
-          'neighbour' => $1,
-          'interface' => $2,
-          'state'     => lc($3),
-        };
+        my $h = {'neighbour' => $1, 'interface' => $2, 'state' => lc($3),};
 
         $self->db->insert('isis_neighbour', $h);
         $self->log->insert('isis_neighbour', $h);
@@ -266,23 +258,23 @@ sub bgp {
   my $RE_BGPv4 = qr{
     ^
     ($RE{net}{IPv4})      # peer, $1
-	  \s+ 
+    \s+
     \d+                   # Spk
     \s+
-	  (\d+)                 # AS, $2
-	  .*?                   # don't care about rest until...
-	  (\d+)                 # ...prefixes, $3
+    (\d+)                 # AS, $2
+    .*?                   # don't care about rest until...
+    (\d+)                 # ...prefixes, $3
     $
   }xmso;
 
   my $RE_BGPv6 = qr{
-    ^ 
-    \s+ 
+    ^
+    \s+
     \d+          # Spk
     \s+
-	  (\d+)        # AS, $1
-	  .*?          # don't care about rest until...
-	  (\d+)        # ...prefixes, $2
+    (\d+)        # AS, $1
+    .*?          # don't care about rest until...
+    (\d+)        # ...prefixes, $2
     $
   }xms;
 
@@ -323,12 +315,7 @@ sub bgp {
       }
 
       when (/$RE_BGPv4/) {
-        my $h = {
-          'peer'     => $1,
-          'asn'      => $2,
-          'prefixes' => $3,
-          'afi'      => $afi,
-        };
+        my $h = {'peer' => $1, 'asn' => $2, 'prefixes' => $3, 'afi' => $afi,};
 
         $self->db->insert('bgp', $h);
         $self->log->insert('bgp', $h);
@@ -340,12 +327,8 @@ sub bgp {
       }
 
       when (/$RE_BGPv6/) {
-        my $h = {
-          'peer'     => $peer,
-          'asn'      => $1,
-          'prefixes' => $2,
-          'afi'      => $afi,
-        };
+        my $h
+          = {'peer' => $peer, 'asn' => $1, 'prefixes' => $2, 'afi' => $afi,};
 
         $self->db->insert('bgp', $h);
         $self->log->insert('bgp', $h);
@@ -356,12 +339,12 @@ sub bgp {
   my $RE_BGP_vrf = qr{
     ^
     ($RE{net}{IPv4})  # Peer, $1
-	  \s+
+    \s+
     \d+               # Spk
     \s+
-	  (\d+)             # AS, $2
-	  .*?               # don't care until...
-	  (\d+)             # ...prefixes, $3
+    (\d+)             # AS, $2
+    .*?               # don't care until...
+    (\d+)             # ...prefixes, $3
     $
   }xmso;
 
@@ -418,12 +401,12 @@ sub bgp {
   my $RE_BGP_vpnv4 = qr{
     ^
     ($RE{net}{IPv4})  # peer, $1
-	  \s+
+    \s+
     \d+               # Spk
     \s+
-	  (\d+)             # AS, $2
-	  .*?               # dont' care until...
-	  (\d+)             # prefixes, $3
+    (\d+)             # AS, $2
+    .*?               # dont' care until...
+    (\d+)             # prefixes, $3
     $
   }xmso;
 
@@ -453,12 +436,8 @@ sub bgp {
 
     for ($line) {
       when (/$RE_BGP_vpnv4/) {
-        my $h = {
-          'peer'     => $1,
-          'asn'      => $2,
-          'afi'      => "vpnv4",
-          'prefixes' => $3,
-        };
+        my $h
+          = {'peer' => $1, 'asn' => $2, 'afi' => "vpnv4", 'prefixes' => $3,};
 
         $self->db->insert('bgp', $h);
         $self->log->insert('bgp', $h);
