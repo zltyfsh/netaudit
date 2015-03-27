@@ -19,6 +19,8 @@ use Netaudit::SNMP;
 use Netaudit::Constants;
 use Netaudit::Log;
 
+no if $] >= 5.017011, warnings => 'experimental::smartmatch';
+
 # Public attributes
 
 # Database handle

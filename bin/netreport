@@ -11,6 +11,8 @@ use warnings;
 use strict;
 use feature 'switch';
 
+no if $] >= 5.017011, warnings => 'experimental::smartmatch';
+
 use FindBin;
 use lib "$FindBin::Bin/../lib/";
 use lib "$FindBin::Bin/../lib/perl5";
@@ -279,9 +281,35 @@ sub fullreport {
 
 sub diffreport {
   my ($diff_arg, $host_arg) = @_;
-  my ($from, $from_epoch, $to, $to_epoch, @hosts, $from_host, $to_host);
+  my ($from, $to, $from_host, $to_host);
 
-  my $sub_mode;
+  # Submode 2: two hostnames, and one or two runs
+  if ($diff_arg =~ /^ ($HOST_RE) , (\d+) , ($HOST_RE) (?: , (\d+))? $/x) {
+    my ($f, $t);
+    ($from_host, $f, $to_host, $t) = ($1, $2, $3, $4);
+
+    # get from run
+    $from = _getrun($f);
+
+    # if $to is defined, use it. an empty $to mean $from
+    $to = defined $t ? _getrun($t) : $from;
+
+    _die_with_no_such_run($f) unless $from;
+    _die_with_no_such_run($t) unless $to;
+
+    printf "Comparing %s, run %d with %s, run %d\n", $from_host, $from, $to_host, $to;
+    _print_run_header($from);
+    _print_run_header($to);
+    print "\n";
+
+    foreach my $href (@tables) {
+      my $old   = _get_table($href, $from, $from_host);
+      my $new   = _get_table($href, $to,   $to_host);
+      _run_diff($old, $new, $href);
+    }
+
+    return;
+  }
 
   # grab the unmodified host
   my $have_host_arg = defined $host_arg;
@@ -292,12 +320,9 @@ sub diffreport {
     $from_host = '%';
   }
 
-  # Submode 1 (diff over same host), with default arguments
   if ($diff_arg eq '' || $diff_arg eq "0") {
-    $sub_mode = 1;
-
     # get the two last runs
-    ($to, $to_epoch, $from, $from_epoch) = _getrun(-1, 2, $from_host);
+    ($to, undef, $from, undef) = _getrun(-1, 2, $from_host);
     die "Can't find two runs for '$host_arg'\n" unless ($to && $from);
 
     # No difference between from and to_host
@@ -306,37 +331,18 @@ sub diffreport {
 
   # Submode 1 (diff over same host), with arguments
   elsif ($diff_arg =~ /^ (\d+) (?: [-,] (\d+))? $/x) {
-    $sub_mode = 1;
-
     my ($f, $t) = ($1, $2);
     # get from run
-    ($from, $from_epoch) = _getrun($f);
+    $from = _getrun($f);
 
     # if $to is defined, use it. an empty $to mean the "last run"
-    ($to, $to_epoch) = defined $t ? _getrun($t) : _getrun(0);
+    $to = defined $t ? _getrun($t) : _getrun(0);
 
     _die_with_no_such_run($f) unless $from;
     _die_with_no_such_run($t) unless $to;
 
     # No difference between from and to_host
     $to_host = $from_host;
-  }
-
-  # Submode 2: two hostnames, and one or two runs
-  elsif ($diff_arg =~ /^ ($HOST_RE) , (\d+) , ($HOST_RE) (?: , (\d+))? $/x) {
-    $sub_mode = 2;
-
-    my ($f, $t);
-    ($from_host, $f, $to_host, $t) = ($1, $2, $3, $4);
-
-    # get from run
-    ($from, $from_epoch) = _getrun($f);
-
-    # if $to is defined, use it. an empty $to mean $from
-    ($to, $to_epoch) = defined $t ? _getrun($t) : ($from, $from_epoch);
-
-    _die_with_no_such_run($f) unless $from;
-    _die_with_no_such_run($t) unless $to;
   }
 
   else {
@@ -347,54 +353,69 @@ sub diffreport {
   my @from_hosts = _gethosts($from);
   my @to_hosts   = _gethosts($to);
 
-  if ($submode == 1) {
-    # if a host is given, check that the host
-    # is unique in both @from_hosts and @to_hosts
-    # also out that host in the list of @hosts
-    # we are looking for
-    if ($have_host_arg) {
-      @hosts = grep { /^$host_arg/ } @from_hosts;
-      die "'$host_arg' isn't unique in run $from\n" if @hosts > 1; 
+  # The hosts to run the diff over
+  my @hosts;
 
-      @hosts = grep { /^$host_arg/ } @to_hosts;
-      die "'$host_arg' isn't unique in run $to\n" if @hosts > 1; 
-    }
+  # if a host is given, check that the host
+  # is unique in both @from_hosts and @to_hosts
+  if ($have_host_arg) {
+    die "'$host_arg' isn't unique in run $from\n"
+      if scalar(grep { /^$host_arg/ } @from_hosts) > 1;
 
-    # if no host is given, run the diff over the hosts which
-    # are in both runs
-    else {
-      # calculate the intersection and symmetric difference
-      # of the hosts, i.e. the hosts present in both runs, and
-      # those in only one run
-      # code from receipe 4.8 in perl cookbook
-      my @isect_hosts = ();
-      my @diff_hosts  = ();
-      my %count;
-      foreach my $e (@from_hosts, @to_hosts) { $count{$e}++ }
-      foreach my $e (keys %count) {
-        push @{$count{$e} == 2 ? \@isect_hosts : \@diff_hosts}, $e;
-      }
+    die "'$host_arg' isn't unique in run $to\n"
+      if scalar(grep { /^$host_arg/ } @to_hosts) > 1;
 
-      if (@diff_hosts) {
-        print "The hosts in the runs do not overlap completly. Only comparing\n";
-        print "hosts audited in both runs. Those are:\n";
-        map { print " - $_\n"; } @isect_hosts;
-        print "\n";
-      }
-
-      # store the isect_hosts in the list of hosts to look for
-      @hosts = @isect_hosts;
-    }
+    @hosts = ($host_arg);
   }
 
-  # Submode 2
+  # if no host is given, run the diff over the hosts which
+  # are in both runs
   else {
+    # calculate the intersection and symmetric difference
+    # of the hosts, i.e. the hosts present in both runs, and
+    # those in only one run
+    # code from receipe 4.8 in perl cookbook
+    my @isect_hosts = ();
+    my @diff_hosts  = ();
+    my %count;
+    foreach my $e (@from_hosts, @to_hosts) { $count{$e}++ }
+    foreach my $e (keys %count) {
+      push @{$count{$e} == 2 ? \@isect_hosts : \@diff_hosts}, $e;
+    }
+
+    if (@diff_hosts) {
+      print "The hosts in the runs do not overlap completly. Only comparing\n";
+      print "hosts audited in both runs. Those are:\n";
+      map { print " - $_\n"; } @isect_hosts;
+      print "\n";
+    }
+
+    # store the isect_hosts in the list of hosts to look for
+    @hosts = @isect_hosts;
   }
 
   print "Comparing the results from the audit runs\n";
-  printf " %2d: %s\n", $from, strftime("%F %H:%M", localtime($from_epoch));
-  printf " %2d: %s\n", $to,   strftime("%F %H:%M", localtime($to_epoch));
+  _print_run_header($from);
+  _print_run_header($to);
   print "\n";
+
+  foreach my $href (@tables) {
+    my $table = Text::Table->new(_create_colspec($href->{columns}));
+    my $old   = _get_table($href, $from, $from_host);
+    my $new   = _get_table($href, $to,   $to_host);
+
+    # only keep those rows in old and new where the hostname is in
+    # the hosts list
+    my $helper = sub {
+      return scalar grep { /^$_[0]$/ } @hosts;
+    };
+    @{$old} = grep { $helper->($$_[0]) } @{$old};
+    @{$new} = grep { $helper->($$_[0]) } @{$new};
+
+    _run_diff($old, $new, $href);
+  }
+
+  return;
 }
 
 sub purgeruns {
@@ -653,7 +674,7 @@ sub _getrun {
   }
 
   my $aref = eval { $db->select_aref($stmt) };
-  die $@ if $@;
+  die "$@\n" if $@;
 
   my @result;
   if ($aref) {
@@ -665,138 +686,135 @@ sub _getrun {
   return wantarray ? @result : $result[0];
 }
 
+sub _get_table {
+  my ($href, $run, $hostname) = @_;
+
+  my $stmt = qq/
+    SELECT * FROM $href->{table}
+    WHERE 
+      run = ? 
+    AND 
+      hostname LIKE ? 
+    ORDER BY $href->{order}
+  /;
+
+  # get data from the runs
+  my $data = $db->select_aref($stmt, $run, $hostname)
+    or die "Couldn't get data from the run $run\n";
+
+  return $data;
+}
+
 sub _die_with_no_such_run {
   my $run = shift;
   die "Run $run do not exist\n";
 }
 
+sub _print_run_header {
+  my $run = shift;
+
+  my (undef, $epoch) = _getrun($run);
+  printf " %2d: %s\n", $run, strftime("%F %H:%M", localtime($epoch));
+}
 
 sub _run_diff {
-  my ($from, $to, $from_hostname, $to_hostname) = @_;
+  my ($old, $new, $href) = @_;
 
-  # If no to_hostname, use same as $from_hostname
-  $to_hostname //= $from_hostname;
+  my $table = Text::Table->new(_create_colspec($href->{columns}));
+  # when running the diff, we can't compare the rows with data directly.
+  # instead, create a stringified representation of each row, and
+  # compare that one.
+  #
+  # fullkey is a string covering all columns, and is used as the key when
+  # running diff over the old and new arrays.
+  #
+  # shortkey is a string covering the columns needed to identify one data
+  # point. if two such strings are identical, the rest of the columns
+  # are variable data that should be compared.
+  #
+  my $shortkeycolumns = $href->{order} =~ tr/,//;
+  foreach my $aref (@{$old}, @{$new}) {
+    my $fullkey = join(";", map { $_ || "" } @{$aref});
+    my $shortkey =
+      join(";", map { $_ || "" } @{$aref}[0 .. $shortkeycolumns]);
+    push(@{$aref}, $shortkey, $fullkey);
+  }
 
-  foreach my $href (@tables) {
-    my $table = Text::Table->new(_create_colspec($href->{columns}));
+  # run a diff of the two AoA's using the fullkey (last element in each array)
+  # as the key
+  my $diff = Algorithm::Diff::diff($old, $new, sub { $_[0][-1] });
 
-    my $stmt = qq/
-      SELECT * FROM $href->{table}
-      WHERE 
-        run = ? 
-      AND 
-        hostname LIKE ? 
-      ORDER BY $href->{order}
-    /;
-
-    # get data from the runs
-    my $old = $db->select_aref($stmt, $from, $from_hostname)
-      or die "Couldn't get data from the run $from\n";
-    my $new = $db->select_aref($stmt, $to, $to_hostname)
-      or die "Couldn't get data from the run $to\n";
-
-    # only keep those rows in old and new where the hostname is in
-    # the hosts list
-    my $helper = sub {
-      return scalar grep { /^$_[0]$/ } @hosts;
-    };
-    @{$old} = grep { $helper->($$_[0]) } @{$old};
-    @{$new} = grep { $helper->($$_[0]) } @{$new};
-
-    # when running the diff, we can't compare the rows with data directly.
-    # instead, create a stringified representation of each row, and
-    # compare that one.
-    #
-    # fullkey is a string covering all columns, and is used as the key when
-    # running diff over the old and new arrays.
-    #
-    # shortkey is a string covering the columns needed to identify one data
-    # point. if two such strings are identical, the rest of the columns
-    # are variable data that should be compared.
-    #
-    my $shortkeycolumns = $href->{order} =~ tr/,//;
-    foreach my $aref (@{$old}, @{$new}) {
-      my $fullkey = join(";", map { $_ || "" } @{$aref});
-      my $shortkey =
-        join(";", map { $_ || "" } @{$aref}[0 .. $shortkeycolumns]);
-      push(@{$aref}, $shortkey, $fullkey);
+  # flatten the diffs into a list of changes. we are not interested
+  # in how to transform old -> new, only the changes.
+  my %HoA;
+  foreach my $hunk (@{$diff}) {
+    foreach my $element (@{$hunk}) {
+      my $op   = @{$element}[0];
+      my $item = @{$element}[2];
+      # copy "shortkey" to key and drop "fullkey"
+      my ($key, undef) = splice(@{$item}, -2);
+      push(@{$HoA{$key}}, [$op, $item]);
     }
+  }
 
-    # run a diff of the two AoA's using the fullkey (last element in each array)
-    # as the key
-    my $diff = Algorithm::Diff::diff($old, $new, sub { $_[0][-1] });
-
-    # flatten the diffs into a list of changes. we are not interested
-    # in how to transform old -> new, only the changes.
-    my %HoA;
-    foreach my $hunk (@{$diff}) {
-      foreach my $element (@{$hunk}) {
-        my $op   = @{$element}[0];
-        my $item = @{$element}[2];
-        # copy "shortkey" to key and drop "fullkey"
-        my ($key, undef) = splice(@{$item}, -2);
-        push(@{$HoA{$key}}, [$op, $item]);
-      }
-    }
-
-    foreach my $k (sort keys %HoA) {
-      # if there is only one element, add it to table
-      if (scalar @{$HoA{$k}} == 1) {
-        my ($op, $element) = splice @{${$HoA{$k}}[0]}, -2;
-        if ($op eq '+') {
-          $table->add(map { formatitem($_ || "") } @{$element});
-        }
-        else {
-          $table->add(map { formatitem($_ ? "[$_]" : "") } @{$element});
-        }
+  foreach my $k (sort keys %HoA) {
+    # if there is only one element, add it to table
+    if (scalar @{$HoA{$k}} == 1) {
+      my ($op, $element) = splice @{${$HoA{$k}}[0]}, -2;
+      if ($op eq '+') {
+        $table->add(map { formatitem($_ || "") } @{$element});
       }
       else {
-        my ($oldop, $oldel) = splice @{${$HoA{$k}}[0]}, -2;
-        my ($newop, $newel) = splice @{${$HoA{$k}}[1]}, -2;
-
-        # op1/element1 must be the 'old' pair (ie. not added/+'ed)
-        if ($oldop eq '+') {
-          my $tmp;
-          $tmp   = $oldop;
-          $oldop = $newop;
-          $newop = $tmp;
-          $tmp   = $oldel;
-          $oldel = $newel;
-          $newel = $tmp;
-        }
-
-        my @a;
-        # loop over the new elements and store the diff with old
-        foreach my $i (0 .. scalar @{$newel}) {
-          my $e1 = $$oldel[$i] || "";
-          my $e2 = $$newel[$i] || "";
-
-          # if no change, just store the element
-          if ($e1 eq $e2) {
-            push(@a, formatitem($e2));
-          }
-          # something changed
-          else {
-            push(@a, formattuple($e1, $e2));
-          }
-        }
-        $table->add(@a);
+        $table->add(map { formatitem($_ ? "[$_]" : "") } @{$element});
       }
     }
-
-    print "$href->{descr}\n";
-    print "=" x length($href->{descr}) . "\n";
-
-    if ($table->body_height > 0) {
-      print $table->title;
-      print $table->rule('-', '+');
-      print $table->body;
-    }
     else {
-      print "No changes\n";
+      my ($oldop, $oldel) = splice @{${$HoA{$k}}[0]}, -2;
+      my ($newop, $newel) = splice @{${$HoA{$k}}[1]}, -2;
+
+      # op1/element1 must be the 'old' pair (ie. not added/+'ed)
+      if ($oldop eq '+') {
+        my $tmp;
+        $tmp   = $oldop;
+        $oldop = $newop;
+        $newop = $tmp;
+        $tmp   = $oldel;
+        $oldel = $newel;
+        $newel = $tmp;
+      }
+
+      my @a;
+      # loop over the new elements and store the diff with old
+      foreach my $i (0 .. scalar @{$newel}) {
+        my $e1 = $$oldel[$i] || "";
+        my $e2 = $$newel[$i] || "";
+
+        # if no change, just store the element
+        if ($e1 eq $e2) {
+          push(@a, formatitem($e2));
+        }
+        # something changed
+        else {
+          push(@a, formattuple($e1, $e2));
+        }
+      }
+      $table->add(@a);
     }
-    print "\n";
   }
+
+  print "$href->{descr}\n";
+  print "=" x length($href->{descr}) . "\n";
+
+  if ($table->body_height > 0) {
+    print $table->title;
+    print $table->rule('-', '+');
+    print $table->body;
+  }
+  else {
+    print "No changes\n";
+  }
+  print "\n";
+
   return;
 }
 

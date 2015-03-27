@@ -16,6 +16,8 @@ use Regexp::IPv6 qw{ $IPv6_re };
 use Netaudit::Constants;
 use Netaudit::DNS;
 
+no if $] >= 5.017011, warnings => 'experimental::smartmatch';
+
 ### RegExps ###
 
 my $PROMPT   = '/> $/';
@@ -168,19 +170,19 @@ sub isis_topology {
     ($HOSTNAME)         # hostname ($1)
     \.
     \d+                 # LSP number
-	  \s+                 
+	  \s+
 	  (\d+)               # metric ($2)
 	  \s*                 # not always a space between metric and interface
 	  ($INTERFACE)        # interface ($3)
-	  \s+ 
+	  \s+
 	  (IPV4 | IPV6)		    # NH afi, ($4)
   }xmso;
 
   my $RE_ISIS_CONT = qr{
     ^
-    \s+                  
+    \s+
 	  ($INTERFACE)   	# interface ($1)
-	  \s+ 
+	  \s+
 	  (\w+)         	# NH afi ($2)
   }xmso;
 
@@ -319,7 +321,7 @@ sub bgp {
 
   my $RE_HEADER = qr{
     ^
-    (?: 
+    (?:
       Groups
       |
       Table
@@ -334,7 +336,7 @@ sub bgp {
 
   my $RE_BGP = qr{
     ^
-    \s+ 
+    \s+
 	  ([\w\.]+)   # afi ($1)
     :
 	  \s+
@@ -503,7 +505,7 @@ sub vrf {
   # if that failed try with Juniper MIB
   my $RE_VPN_TABLE = qr{
     (\d+)         # column in the table ($1)
-    \. 
+    \.
     (\d+)         # the vpntype ($2)
     \.
     (.*)          # the vrf name encoded in "dotted ascii" ($3)
@@ -541,9 +543,9 @@ sub vrf {
   return $AUDIT_NODATA unless $result;
 
   # store collected data in database
-  map { 
+  map {
     $self->db->insert('vrf', $result->{$_});
-    $self->log->insert('vrf', $result->{$_}); 
+    $self->log->insert('vrf', $result->{$_});
   } keys %{$result};
 
   return $AUDIT_OK;
@@ -566,11 +568,11 @@ sub pwe3 {
   # if that failed try with Juniper MIB
   my $RE_PW_TABLE = qr{
     (\d+)         # column in the table ($1)
-    \. 
+    \.
     (\d+)         # the vpntype ($2)
     \.
     (.*)          # the interface name encoded in "dotted ascii" ($3)
-    \. 
+    \.
     (\d+)         # the pwindex, which isn't the VC ID ($4)
     $
   }xmso;
@@ -606,9 +608,9 @@ sub pwe3 {
   return $AUDIT_NODATA unless $result;
 
   # store collected data in database
-  map { 
+  map {
     $self->db->insert('pwe3', $result->{$_});
-    $self->log->insert('pwe3', $result->{$_}); 
+    $self->log->insert('pwe3', $result->{$_});
   } keys %{$result};
 
   return $AUDIT_OK;

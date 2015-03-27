@@ -15,16 +15,18 @@ use Regexp::IPv6 qw{ $IPv6_re };
 
 use Netaudit::Constants;
 
+no if $] >= 5.017011, warnings => 'experimental::smartmatch';
+
 ### RegExps ###
 
 my $PROMPT   = '/RP.*\/CPU\d+:[-\p{Alnum}\.]+#\s*/';
 my @HANDLES = (qr{ Cisco \s IOS \s XR \s Software }xms);
 my $MAC = qr{ [0-f]{4} \. [0-f]{4} \. [0-f]{4} }xms;
 
-my $INTERFACE = qr{ 
+my $INTERFACE = qr{
   (?:Te|Gi [a-zA-Z]*)      # interface type
-	(?:\d+ /){3} \d+         # chassis / slot / module / port 
-	(?:\. \d+ )*             # optional sub-interface
+  (?:\d+ /){3} \d+         # chassis / slot / module / port
+  (?:\. \d+ )*             # optional sub-interface
 }xms;
 
 # SNMP OID's
@@ -207,11 +209,11 @@ sub isis_neighbour {
   my $RE_ISIS = qr{
     ^
     ($HOSTNAME)                # neighbour, $1
-	  \s+ 
+	  \s+
 	  ($INTERFACE)               # interface, $2
-	  \s+ 
-    (?: $MAC | \*PtoP\* ) 
-    \s+     
+	  \s+
+    (?: $MAC | \*PtoP\* )
+    \s+
 	  (\w+)                      # state, $3
 	}xmso;
 
@@ -264,7 +266,7 @@ sub bgp {
   my $RE_BGPv4 = qr{
     ^
     ($RE{net}{IPv4})      # peer, $1
-	  \s+ 
+	  \s+
     \d+                   # Spk
     \s+
 	  (\d+)                 # AS, $2
@@ -274,8 +276,8 @@ sub bgp {
   }xmso;
 
   my $RE_BGPv6 = qr{
-    ^ 
-    \s+ 
+    ^
+    \s+
     \d+          # Spk
     \s+
 	  (\d+)        # AS, $1

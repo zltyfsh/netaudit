@@ -15,6 +15,8 @@ use Regexp::IPv6 qw{ $IPv6_re };
 
 use Netaudit::Constants;
 
+no if $] >= 5.017011, warnings => 'experimental::smartmatch';
+
 ### RegExps ###
 
 my $PROMPT    = '/[\p{Alnum}\.-]+[#>]\s*/';
@@ -27,7 +29,7 @@ my @HANDLES = (
 
 my $MAC = qr! [0-f]{4} \. [0-f]{4} \. [0-f]{4} !xms;
 
-my $INTERFACE = qr{ 
+my $INTERFACE = qr{
   (?:Gi|Fa [a-zA-Z]*)      # interface type
 	\d+ / \d+                # slot / port|module
 	(?: / \d+ )*             # port (if module)
@@ -87,9 +89,9 @@ sub route_summary {
   my $h;
 
   my $RE_ISIS = qr{
-    ^ 
-    isis 
-    \s+ 
+    ^
+    isis
+    \s+
 	  (?: [-a-zA-Z]+ \s+ )*  # optional isis name
 	  (\d+)                  # networks
     \s+
@@ -98,8 +100,8 @@ sub route_summary {
 
   my $RE_BGP = qr{
     ^
-    bgp 
-    \s+ 
+    bgp
+    \s+
 	  \d+       # asn
     \s+
 	  (\d+)     # networks
@@ -161,29 +163,29 @@ sub route_summary {
   # and then ipv6
 
   my $RE_v6_ONELINE = qr{
-    ^ 
+    ^
     \s+ (\d+) \s+ local     ,*  # $1
 	  \s+ (\d+) \s+ connected ,*  # $2
 		\s+ (\d+) \s+ static    ,*  # $3
-		\s+  \d+  \s+ RIP       ,*        
+		\s+  \d+  \s+ RIP       ,*
 		\s+ (\d+) \s+ BGP       ,*  # $4
 		\s+ (\d+) \s+ IS-IS     ,*  # $5
-		\s+  \d+  \s+ OSPF      ,*       
+		\s+  \d+  \s+ OSPF      ,*
   }xms;
 
   my $RE_v6_ISIS = qr{
-    ^ 
+    ^
     isis
-    \s+ 
+    \s+
 	  (?: [-a-zA-Z]+ \s+ )*   # optional isis name
 	  (\d+)                   # networks
   }xms;
 
   my $RE_v6_BGP = qr{
     ^
-    bgp 
-    \s+ 
-	  \d+       # asn 
+    bgp
+    \s+
+	  \d+       # asn
     \s+
 	  (\d+)     # networks
   }xms;
@@ -266,9 +268,9 @@ sub isis_topology {
   my ($host, $metric);
 
   my $RE_ISIS = qr{
-    ^ 
+    ^
     ($HOSTNAME)      # host, $1
-	  \s+ 
+	  \s+
 	  (\d+)            # metric, $2
 	  \s*              # optional space
 	  $HOSTNAME        # next hop router
@@ -406,12 +408,12 @@ sub isis_neighbour {
   my ($self) = @_;
 
   my $RE_ISIS = qr{
-    ^ 
+    ^
     ($HOSTNAME)     # hostname ($1)
 	  \s*             # optional space
 	  ($INTERFACE)    # interface ($2)
-	  \s+ 
-    (?: $MAC | \*Tunnel\* ) 
+	  \s+
+    (?: $MAC | \*Tunnel\* )
     \s+
 	  (\w+)           # state ($3)
   }xmso;
@@ -454,14 +456,14 @@ sub bgp {
   my ($peer, $asn, $vrf, $afi);
 
   my $RE_BGP_v4 = qr{
-    ^ 
+    ^
     ($RE{net}{IPv4})   # peer ($1)
     \s+
 	  \d+                # bgp version
     \s+
 	  (\d+)              # asn ($2)
 	  .*?                # filler
-	  (\d+)              # prefixes ($3), we only cares about peers 
+	  (\d+)              # prefixes ($3), we only cares about peers
                        # with (0 or more) prefixes
     $
   }xmso;
@@ -498,7 +500,7 @@ sub bgp {
   my $RE_BGP_v6 = qr{
     ^
     ($IPv6_re)  # peer ($1)
-    \s+ 
+    \s+
     \d+         # bgp version
     \s+
 	  (\d+)       # asn ($2)
@@ -509,7 +511,7 @@ sub bgp {
 
   my $RE_BGP_v6_CONT = qr{
     ^
-    \s+ 
+    \s+
     \d+         # bgp version
     \s+
 	  (\d+)       # asn ($1)
@@ -569,11 +571,11 @@ sub bgp {
   # and finally vpnv4
 
   my $RE_BGP_vrf = qr{
-    ^ 
-    BGP \s neighbor \s is \s 
+    ^
+    BGP \s neighbor \s is \s
 	  ($RE{net}{IPv4})             # peer ($1)
     ,
-	  \s+ 
+	  \s+
     vrf                          # do have a VRF
     \s+
 	  ([^,]+)                      # VRF (anything until next ,) ($2)
@@ -583,8 +585,8 @@ sub bgp {
   }xmso;
 
   my $RE_BGP_vpnv4 = qr{
-    ^ 
-    BGP \s neighbor \s is \s 
+    ^
+    BGP \s neighbor \s is \s
 	  ($RE{net}{IPv4})             # peer ($1)
     ,
 	  \s+ remote \s AS \s+
@@ -592,10 +594,10 @@ sub bgp {
   }xmso;
 
   my $RE_BGP_prefixes = qr{
-    ^ 
-    \s+ 
-    Prefixes \s Current: 
-	  \s+ 
+    ^
+    \s+
+    Prefixes \s Current:
+	  \s+
     \d+           # sent
     \s+
 	  (\d+)         # received ($1)
