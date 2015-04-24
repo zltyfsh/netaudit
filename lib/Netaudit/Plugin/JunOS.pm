@@ -171,17 +171,21 @@ sub isis_topology {
     \s+
     (\d+)               # metric ($2)
     \s*                 # not always a space between metric and interface
-    ($INTERFACE)        # interface ($3)
+    $INTERFACE          # interface
     \s+
-    (IPV4 | IPV6)       # NH afi, ($4)
+    (IPV4 | IPV6)       # NH afi, ($3)
+    \s+
+    ($HOSTNAME)         # next hop ($4)
   }xmso;
 
   my $RE_ISIS_CONT = qr{
     ^
     \s+
-    ($INTERFACE)    # interface ($1)
+    $INTERFACE      # interface
     \s+
-    (\w+)           # NH afi ($2)
+    (IPV4 | IPV6)   # NH afi, ($1)
+    \s+
+    ($HOSTNAME)     # next hop ($2)
   }xmso;
 
   $self->log->info('running "show isis spf brief level 2"');
@@ -234,8 +238,8 @@ sub isis_topology {
           my $h = {
             'host'      => $host,
             'metric'    => $metric,
-            'interface' => $3,
-            'afi'       => lc($4),
+            'nexthop'   => $4,
+            'afi'       => lc($3),
           };
           $self->db->insert('isis_topology', $h);
           $self->log->insert('isis_topology', $h);
@@ -248,8 +252,8 @@ sub isis_topology {
         my $h = {
           'host'      => $host,
           'metric'    => $metric,
-          'interface' => $1,
-          'afi'       => lc($2),
+          'nexthop'   => $2,
+          'afi'       => lc($1),
         };
         $self->db->insert('isis_topology', $h);
         $self->log->insert('isis_topology', $h);

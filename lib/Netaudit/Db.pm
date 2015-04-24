@@ -45,7 +45,7 @@ use DBI;
 use Netaudit::Constants;
 use Readonly;
 
-Readonly my $SCHEMA_VER => 2;
+Readonly my $SCHEMA_VER => 3;
 
 =head1 ATTRIBUTES
 
@@ -338,7 +338,7 @@ CREATE TABLE db (
     version   INTEGER
 );
 --
-INSERT INTO db (version) VALUES ('2');
+INSERT INTO db (version) VALUES ('3');
 --
 CREATE TABLE IF NOT EXISTS runs (
     run     INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -371,7 +371,7 @@ CREATE TABLE IF NOT EXISTS isis_topology (
     hostname    TEXT,
     host        TEXT,
     metric      INTEGER,
-    interface   TEXT,
+    nexthop     TEXT,
     afi         TEXT,
     FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
 );

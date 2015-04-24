@@ -1,13 +1,8 @@
-netaudit version 2.1 introduce two changes in database storage:
+As of verion 3, there is no backward compliance with databases from
+earlier releaser. That mean you have to start over from scratch.
 
-1) In isis_topology, LSP-id's are now stripped from "host" on all platforms
+TL;DR
 
-2) In pwe3, the "peer" IP-address is resolved to a hostname
-
-Both changes leads to false positives when running netreport in "diff"
-mode. The distribution includes a script share/upgrade1.x-2.1 which converts
-old formats to the now ones.
-
-
-There is some changes in the command line arguments in netreport. See
-the man page for further information.
+There is very limited tools to modify a SQLite database, and the
+operations that were needed to convert a < 3.0 database just isn't
+there. Sorry about that.

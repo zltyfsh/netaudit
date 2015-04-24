@@ -12,6 +12,7 @@ use Mojo::Base 'Netaudit::Plugin::Base';
 
 use Regexp::Common;
 use Regexp::IPv6 qw{ $IPv6_re };
+use List::AllUtils qw{ any };
 
 use Netaudit::Constants;
 
@@ -147,10 +148,10 @@ sub isis_topology {
     \s+
     (\d+)             # metric ($2)
     \s+
-    $HOSTNAME         # next hop router
-    \s+
-    ($INTERFACE)      # next hop interface ($3)
+    ($HOSTNAME)       # next hop router ($3)
   }xmso;
+
+  my @found = ();
 
   foreach my $line ($self->cli->cmd("show isis afi-all topology level 2")) {
     $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
@@ -176,9 +177,6 @@ sub isis_topology {
     # stavang-FABV8-p2  100     stavang-FABV8-p2  Te0/0/0/0       *PtoP*
 
     for ($line) {
-      # skip header
-      when (m{ ^ System \ Id }xms) { }
-
       # grab afi
       when (m{ ^ IS-IS .* (IPv4 | IPv6) }xms) {
         $afi = lc($1);
@@ -186,8 +184,13 @@ sub isis_topology {
 
       # get all entries with numerical metric
       when (/$RE_ISIS/) {
-        my $h
-          = {'host' => $1, 'metric' => $2, 'interface' => $3, 'afi' => $afi,};
+        my $this = join ':', $1, $3, $afi;
+        # skip duplicate neighbour next-hops
+        next if any { $_ eq $this } @found;
+
+        # nope, new one
+        push @found, $this;
+        my $h = {host => $1, metric => $2, nexthop => $3, afi => $afi};
 
         $self->db->insert('isis_topology', $h);
         $self->log->insert('isis_topology', $h);
@@ -234,9 +237,6 @@ sub isis_neighbour {
     # Total neighbor count: 19
 
     for ($line) {
-      # skip headers
-      when (m{^ (?: IS-IS | System \s Id | Total \s neighbour \s count ) }) { }
-
       when (/$RE_ISIS/) {
         my $h = {'neighbour' => $1, 'interface' => $2, 'state' => lc($3),};
 

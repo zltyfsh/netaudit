@@ -52,7 +52,7 @@ my @tables = ({
   {
     table   => 'isis_topology',
     descr   => 'IS-IS topology',
-    columns => 'Hostname,Host,AFI,Interface,Metric',
+    columns => 'Hostname,Host,AFI,NextHop,Metric',
     order   => 'hostname,host,afi',
   },
 

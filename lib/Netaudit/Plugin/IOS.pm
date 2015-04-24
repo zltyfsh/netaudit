@@ -1,5 +1,5 @@
 #
-# Copyright 2012,2013,2014 Per Carlson
+# Copyright 2012-2015 Per Carlson
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the same terms as Perl 5.14. For more details,
@@ -273,25 +273,13 @@ sub isis_topology {
     \s+
     (\d+)            # metric, $2
     \s*              # optional space
-    $HOSTNAME        # next hop router
-    \s+
-    ($INTERFACE)     # next hop interface, $3
-    \s*              # optional space
-    # if there are some tunneling used, the SNPA will be '*Tunnel*'
-    # instead of MAC address
-    (?:$MAC | \*Tunnel\*)
+    ($HOSTNAME)      # next hop router, $3
   }xmso;
 
   my $RE_ISIS_CONT = qr{
     ^
     \s+              # leading space
-    $HOSTNAME        # next hop router
-    \s+
-    ($INTERFACE)     # next hop interface, $1
-    \s*              # optional space
-    # if there are some tunneling used, the SNPA will be '*Tunnel*'
-    # instead of MAC address
-    (?:$MAC | \*Tunnel\*)
+    ($HOSTNAME)        # next hop router
   }xmso;
 
   # we need two runs here. 12k do support "sh isis * top", but not all 7200
@@ -325,7 +313,7 @@ sub isis_topology {
         my $h = {
           'host'      => $host,
           'metric'    => $metric,
-          'interface' => $3,
+          'nexthop'   => $3,
           'afi'       => "ipv4",
         };
 
@@ -339,7 +327,7 @@ sub isis_topology {
         my $h = {
           'host'      => $host,
           'metric'    => $metric,
-          'interface' => $1,
+          'nexthop'   => $1,
           'afi'       => "ipv4",
         };
 
@@ -363,9 +351,6 @@ sub isis_topology {
     # ar6.oslofn3           --
 
     for ($line) {
-      # skip header lines
-      when (m{ ^ (?: IS-IS | System \s Id ) }xms) { }
-
       # match lines beginning with a node/hostname
       # with a numerical metric
       when (/$RE_ISIS/) {
@@ -375,7 +360,7 @@ sub isis_topology {
         my $h = {
           'host'      => $host,
           'metric'    => $metric,
-          'interface' => $3,
+          'nexthop'   => $3,
           'afi'       => "ipv6",
         };
 
@@ -389,7 +374,7 @@ sub isis_topology {
         my $h = {
           'host'      => $host,
           'metric'    => $metric,
-          'interface' => $1,
+          'nexthop'   => $1,
           'afi'       => "ipv6"
         };
 

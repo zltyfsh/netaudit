@@ -27,6 +27,7 @@ my $build = Module::Build->new (
     'Algorithm::Diff' => 0,
     'Config::Simple' => 0,
     'Readonly' => 0,
+    'List::AllUtils' => 0,
   },
   recommends => {
     # having those enables colored output
