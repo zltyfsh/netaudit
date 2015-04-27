@@ -214,7 +214,13 @@ Lines starting with the character '#' are treated as comments.
 
 =item B<community> = I<community>
 
-The SNMPv2c community to use when polling the device MIBs. 
+The SNMPv2c community to use when polling the device MIBs.
+
+This is a deprecated configuration parameter, use L</communities> instead.
+
+=item B<communities> = I<community>, [ I<community> ]
+
+The SNMPv2c communities to try when polling the device MIBs.
 Default is C<public>.
 
 =item B<database> = F<database>

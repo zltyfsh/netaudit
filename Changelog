@@ -1,6 +1,7 @@
 NEXT
 	2015-04-27
 	Use 'next-hop' instead of 'interface' in isis_topology
+	Replaced config parameter 'community' with 'communities'
 
 3.2 --	2014-04-09
 	* netaudit:

@@ -49,20 +49,20 @@ sub run {
   say colored("host: $host", "bold");
   $self->_log->info("Auditing host $host");
 
-  my $snmp = Netaudit::SNMP->new(
-    hostname  => $host,
-    community => $self->config->community,
-  );
-  if (!$snmp) {
-    say colored("Host $host is unreachable: $@", "red");
-    $self->_log->error("Host $host is unreachable: $@");
-    return;
+  my ($snmp, $sysdescr);
+  foreach my $c (@{$self->config->communities}) {
+    $snmp = Netaudit::SNMP->new(hostname => $host, community => $c);
+    $self->_log->info(qq{$host trying community '$c'});
+
+    $sysdescr = $snmp->sysdescr;
+    $self->_log->debug(qq{Got sysDescr: @{[ $sysdescr // '<undef>' ]}});
+    last if $sysdescr;
+    undef $snmp;
   }
 
-  my $sysdescr = $snmp->sysdescr();
   if (!$sysdescr) {
-    say colored("Failed to get a sysDescr from $host: $@", "red");
-    $self->_log->error("Failed to get a sysDescr from $host: $@");
+    say colored("Failed to get a sysDescr from $host.", "red");
+    $self->_log->error("Failed to get a sysDescr from $host");
     return;
   }
   $self->_log->debug("$host sysDescr=$sysdescr");
@@ -70,13 +70,13 @@ sub run {
   # find the plugin which handles this host based on the
   # SNMP sysDescr (contained in $res)
   my $plugin = first { $_->handles($sysdescr) } $self->plugins;
-  $self->_log->debug("$host plugin=$plugin");
   if (!$plugin) {
     say colored("Don't know how to handle $host based on sysDescr", "red");
     $self->_log->error(
       "Don't know how to handle $host based on sysDescr ($sysdescr)");
     return;
   }
+  $self->_log->debug("$host plugin=$plugin");
 
   # create a cli session
   my $cli = eval { Net::Telnet->new($host) };

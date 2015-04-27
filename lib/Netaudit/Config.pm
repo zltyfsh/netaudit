@@ -72,8 +72,8 @@ has 'filename';
 has 'database' => 'netaudit.db';
 
 
-# The SNMP community.  Default is 'public'.
-has 'community' => 'public';
+# The SNMP communities.  Default is 'public'.
+has 'communities' => sub{ ['public']};
 
 
 # The telnet username to use. Default is 'netaudit'.
@@ -155,13 +155,21 @@ sub new {
   # set our attributes from the config file, overriding the
   # defaults
   $self->database($cfg->param('database'))   if $cfg->param('database');
-  $self->community($cfg->param('community')) if $cfg->param('community');
   $self->range([$cfg->param('range')])       if $cfg->param('range');
   $self->username($cfg->param('username'))   if $cfg->param('username');
   $self->password($cfg->param('password'))   if $cfg->param('password');
   $self->log_level($cfg->param('log_level')) if $cfg->param('log_level');
   $self->log_file($cfg->param('log_file'))   if $cfg->param('log_file');
   $self->timeout($cfg->param('timeout'))     if $cfg->param('timeout');
+
+  # Use 'communities' if found, else try 'community'
+  if ($cfg->param('communities')) {
+    $self->communities([$cfg->param('communities')]);
+  }
+  elsif ($cfg->param('community')) {
+    warn qq{Parameter 'community' is deprecated, use 'communities' instead\n};
+    $self->communities([$cfg->param('community')]);
+  }
 
   return $self;
 }
