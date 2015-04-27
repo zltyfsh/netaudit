@@ -4,6 +4,7 @@ NEXT
 	Replaced config parameter 'community' with 'communities'
 	Store all IPv6 addresses in lowercase (as recommended by RFC 5952)
 	Added support for Huawei NE-routers
+	Added support for diff between hosts (and runs)
 
 3.2 --	2014-04-09
 	* netaudit:
