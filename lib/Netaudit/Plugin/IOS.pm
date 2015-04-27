@@ -519,7 +519,7 @@ sub bgp {
       # ... and get the rest of the parameters
       when (/$RE_BGP_v6_CONT/) {
         my $h
-          = {'peer' => $peer, 'asn' => $1, 'afi' => "ipv6", 'prefixes' => $2};
+          = {'peer' => lc($peer), 'asn' => $1, 'afi' => "ipv6", 'prefixes' => $2};
 
         $self->db->insert('bgp', $h);
         $self->log->insert('bgp', $h);
@@ -527,7 +527,7 @@ sub bgp {
 
       # when all are on one line
       when (/$RE_BGP_v6/) {
-        my $h = {'peer' => $1, 'asn' => $2, 'afi' => "ipv6", 'prefixes' => $3};
+        my $h = {'peer' => lc($1), 'asn' => $2, 'afi' => "ipv6", 'prefixes' => $3};
 
         $self->db->insert('bgp', $h);
         $self->log->insert('bgp', $h);

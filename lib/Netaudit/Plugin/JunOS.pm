@@ -427,7 +427,7 @@ sub bgp {
           # inet6.0 contains global IPv6 prefixes
           when (m{ ^ inet6 \. 0 $ }xms) {
             my $h = {
-              'peer'     => $peer,
+              'peer'     => lc($peer),
               'asn'      => $asn,
               'afi'      => "ipv6",
               'prefixes' => $prefixes,

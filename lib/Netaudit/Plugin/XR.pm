@@ -315,7 +315,7 @@ sub bgp {
       }
 
       when (/$RE_BGPv4/) {
-        my $h = {'peer' => $1, 'asn' => $2, 'prefixes' => $3, 'afi' => $afi,};
+        my $h = {'peer' => lc($1), 'asn' => $2, 'prefixes' => $3, 'afi' => $afi,};
 
         $self->db->insert('bgp', $h);
         $self->log->insert('bgp', $h);
@@ -328,7 +328,7 @@ sub bgp {
 
       when (/$RE_BGPv6/) {
         my $h
-          = {'peer' => $peer, 'asn' => $1, 'prefixes' => $2, 'afi' => $afi,};
+          = {'peer' => lc($peer), 'asn' => $1, 'prefixes' => $2, 'afi' => $afi,};
 
         $self->db->insert('bgp', $h);
         $self->log->insert('bgp', $h);
