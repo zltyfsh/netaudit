@@ -190,8 +190,9 @@ sub hostruns {
   # loop over the hosts picking up the runs
   foreach my $host (@hosts) {
     my @runs = $db->select_column($stmt, $host);
-    print "Host: $host\n";
-    print "Runs: ", join(", ", @runs), "\n\n";
+    say "Host: $host";
+    say "Runs: ", join(", ", @runs);
+    say '';
   }
 }
 
@@ -212,8 +213,9 @@ sub runhosts {
   # loop over the runs picking up the hosts
   foreach my $run (@runs) {
     my (undef, $epoch) = _getrun($run);
-    printf "Run: %s (%s)\n", $run, strftime("%F %H:%M", localtime($epoch));
-    print "Hosts: ", join(", ", _gethosts($run)), "\n\n";
+    printf "Run: %s (%s)\n", $run, _to_date($epoch);
+    say "Hosts: ", join(", ", _gethosts($run));
+    say '';
   }
 }
 
@@ -248,8 +250,8 @@ sub fullreport {
       if (scalar grep {m{ ^ $hostname_arg }xms} @hosts) == 0;
   }
 
-  printf "Full report of the audit run at: %s\n\n",
-    strftime("%F %H:%M", localtime($epoch));
+  say "Full report of the audit run at: ". _to_date($epoch);
+  say '';
 
   foreach my $href (@tables) {
     # Add 'Hostname' to columns and order
@@ -274,12 +276,12 @@ sub fullreport {
     foreach my $rref (@{$aref}) {
       $table->add(@{$rref});
     }
-    print "$href->{descr}:\n";
-    print "=" x length("$href->{descr}:"), "\n";
-    print $table->title();
-    print $table->rule('-', '+');
-    print $table->body();
-    print "\n";
+    say "$href->{descr}:";
+    say "=" x length("$href->{descr}:");
+    say $table->title();
+    say $table->rule('-', '+');
+    say $table->body();
+    say '';
   }
 
   return;
@@ -307,7 +309,7 @@ sub diffreport {
       $from_host, $from, $to_host, $to;
     _print_run_header($from);
     _print_run_header($to) if $from != $to;
-    print "\n";
+    say '';
 
     # Add wildcards to hostnames (unless already set)
     $from_host .= '%' unless $from_host =~ /%/;
@@ -394,17 +396,17 @@ sub diffreport {
     }
 
     if (@diff_hosts) {
-      print "The hosts in the runs do not overlap completly. Only comparing\n";
-      print "hosts audited in both runs. Those are:\n";
-      map { print " - $_\n"; } @isect_hosts;
-      print "\n";
+      say "The hosts in the runs do not overlap completly. Only comparing";
+      say "hosts audited in both runs. Those are:";
+      say " - $_" for @isect_hosts;
+      say '';
     }
 
     # store the isect_hosts in the list of hosts to look for
     @hosts = @isect_hosts;
   }
 
-  print "Comparing the results from the audit runs\n";
+  say "Comparing the results from the audit runs";
   _print_run_header($from);
   _print_run_header($to);
 
@@ -425,7 +427,7 @@ sub diffreport {
     _show_diff($old, $new, $table, 'include_hosts');
   }
 
-  print "\n";
+  say '';
 }
 
 sub purgeruns {
@@ -448,11 +450,11 @@ sub purgeruns {
 sub listruns {
   my ($count) = @_;
 
-  my @runs = getrun(-1, $count) or die "Didn't find any matching runs\n";
+  my @runs = _getrun(-1, $count) or die "Didn't find any matching runs\n";
 
-  printf "%3s | %s\n", "run", "datetime";
+  printf "%3s | %s\n", "run", "date/time";
   while (my ($r, $e) = splice(@runs, 0, 2)) {
-    printf "%3d | %s\n", $r, strftime("%F %H:%M", localtime($e));
+    printf "%3d | %s\n", $r, _to_date($e);
   }
   return;
 }
@@ -464,8 +466,8 @@ sub isisreport {
   ($run, $epoch) = _getrun($run)
     or die "Run $run do not exist. Use --list to view available runs.\n";
 
-  printf "ISIS topology audit of the run at: %s\n\n",
-    strftime("%F %H:%M", localtime($epoch));
+  say "ISIS topology audit of the run at: ". _to_date($epoch);
+  say '';
 
   my $v4stmt = q/
     SELECT hostname, host, interface, metric
@@ -518,9 +520,9 @@ sub isisreport {
     print $table->body;
   }
   else {
-    print "Gratulations! No inconsistencies in the topologies\n";
+    say "Gratulations! No inconsistencies in the topologies";
   }
-  print "\n";
+  say '';
 
   return;
 }
@@ -712,7 +714,7 @@ sub _getrun {
 sub _print_run_header {
   my $run = shift;
   my (undef, $epoch) = _getrun($run);
-  printf "Run %2d @ %s\n", $run, strftime("%F %H:%M", localtime($epoch));
+  printf "Run %2d @ %s\n", $run, _to_date($epoch);
 }
 
 sub _show_diff {
@@ -831,6 +833,11 @@ sub _strip_first_col {
 
 sub _sql_select_cols {
   return join(',', map { lc } @_);
+}
+
+sub _to_date {
+  my $epoch = shift;
+  return strftime("%F %R%z", localtime($epoch));
 }
 
 __DATA__
