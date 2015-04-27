@@ -311,6 +311,8 @@ sub diffreport {
     _print_run_header($to) if $from != $to;
     say '';
 
+    _print_compare_help();
+
     # Add wildcards to hostnames (unless already set)
     $from_host .= '%' unless $from_host =~ /%/;
     $to_host   .= '%' unless $to_host   =~ /%/;
@@ -838,6 +840,40 @@ sub _sql_select_cols {
 sub _to_date {
   my $epoch = shift;
   return strftime("%F %R%z", localtime($epoch));
+}
+
+sub _print_compare_help {
+  print << 'EOF'
+Note, this mode is particulary hard to interpret ths result of.
+
+Let's say we've got the following result (the row number is
+added for reference) after running the command 'netreport -d A,1,B,2'
+
+| Row | Host | AFI    | NextHop | Metric          |
++-----+------+--------+---------+-----------------+
+| 1   | [B]  | [ipv4] | [E]     | [1000]          |
+| 2   | A    | ipv4   | E       |   3105          |
+| 3   | C    | ipv4   | D [B]   |   1005 [-3095]  |
+
+Row 1 has got ALL values within brackets ([]).
+=> This row was present in 'A run 1' but is missing from 'B run 2'.
+
+Row 2 has NO values in brackets.
+=> This row wasn't present in 'A run 1' but is in 'B run 2'.
+
+Row 3 has SOME values in brackets.
+=> The values NOT in brackets has NOT changed between 'A run 1' and 'B run 2'.
+=> The values WITH brackets has changed, and the value IN the brackets
+   is the one in 'A run 1', and the value WITHOUT brackets is in 'B run 2'.
+
+   Here: The nexthop to C has changed from B to D, and the metric is
+   lowered from 4100 to 1005 between 'A run 1' and 'B run 2'.
+
+Rember: Values in brackets are the "old" (first) host/run, and
+values without brackets are the "new" (second) host/run.
+
+
+EOF
 }
 
 __DATA__
