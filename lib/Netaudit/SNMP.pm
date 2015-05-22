@@ -217,11 +217,12 @@ sub chr2str {
 
 =head2 C<ip2dot>
 
-  $ip = $snmp->ip2dot('0xC0020001');
-  print $ip;   # prints 192.2.0.1
+  $ip = $snmp->ip2dot('0xC0020001');  # 192.2.0.1
+  $ip = $snmp->ip2dot("\n\n\n2");     # 10.10.10.2
+  $ip = $snmp->ip2dot(1234);          # 0.0.4.210
 
-In SNMP sometimes IPv4-addresses are stored as a raw
-32-bit integer, either in decimal format or in hex.
+In SNMP sometimes IPv4-addresses are stored as an 32-bit integer,
+either in decimal format, in hex or as a "printable ascii string".
 C<ip2dot> converts this integer to a normal "quad dotted"
 string representation.
 
@@ -230,11 +231,17 @@ string representation.
 # convert a numeric ip-address to dotted decimal
 sub ip2dot {
   my ($self, $ip) = @_;
-  my ($b1, $b2, $b3, $b4);
+
+  # Is the string 4 chars wide (and isn't a short integer),
+  # then it's a integer converted to a text string.
+  if (length $ip == 4 && $ip !~ /^\d+$/) {
+    return join('.', map { ord } split('', $ip));
+  }
 
   # got a hex string? if so, get a 10base value
-  $ip = hex($ip) if ($ip =~ /^0x/);
+  $ip = hex($ip) if $ip =~ /^0x/i;
 
+  my ($b1, $b2, $b3, $b4);
   $b1 = $ip % 256;
   $ip = $ip >> 8;
   $b2 = $ip % 256;

@@ -1,0 +1,2 @@
+--lib
+-Mlocal::lib=extlib/

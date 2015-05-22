@@ -29,6 +29,9 @@ my $build = Module::Build->new (
     'Readonly' => 0,
     'List::AllUtils' => 0,
   },
+  test_requires => {
+    'Test::More' => 0,
+  },
   recommends => {
     # having those enables colored output
     'Text::Aligner' => '0.06',
