@@ -277,9 +277,9 @@ sub fullreport {
     }
     say "$href->{descr}:";
     say "=" x length("$href->{descr}:");
-    say $table->title();
-    say $table->rule('-', '+');
-    say $table->body();
+    print $table->title();
+    print $table->rule('-', '+');
+    print $table->body();
     say '';
   }
 

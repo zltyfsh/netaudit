@@ -8,6 +8,7 @@ NEXT
 	Renamed database upgrade script to "upgrade_netaudit_db" and moved it into bin/ (to be more easily accessible)
 	Accept more input formats in ip2dot
 	Added some basic unit tests
+	Removed some extran newlines in table printing
 
 3.2 --	2014-04-09
 	* netaudit:
