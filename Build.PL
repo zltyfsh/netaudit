@@ -37,16 +37,10 @@ my $build = Module::Build->new (
     'Text::Aligner' => '0.06',
     'Term::ANSIColor' => '2.01',
   },
-  share_files => {
-    'share/upgrade1.x-2.1' => 'share/upgrade1.x-2.1',
-  },
   doc_files   => {
     map( ($_ => catfile('doc', $_) ), qw[ TODO INSTALL UPGRADE ])
   },
 );
-
-$build->install_base_relpaths('share' => catdir('share', $build->module_name) );
-$build->add_build_element('share');
 
 $build->install_base_relpaths('doc' => catdir('share', 'doc', $build->module_name) );
 $build->add_build_element('doc');
