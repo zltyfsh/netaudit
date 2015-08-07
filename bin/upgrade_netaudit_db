@@ -18,10 +18,11 @@ my $db = DBI->connect("dbi:SQLite:dbname=" . $database)
 
 my $version = get_db_version();
 for ($version) {
-  when (1) { upgrade_1to2(); upgrade_2to3(); }
-  when (2) { upgrade_2to3(); }
-  when (3) { say "The database is already upgraded" }
-  default  { say "Can't upgrade the database from version $version to 3" }
+  when (1) { upgrade_1to2(); upgrade_2to3(); upgrade_3to4(); upgrade_version(4) }
+  when (2) { upgrade_2to3(); upgrade_3to4(); upgrade_version(4) }
+  when (3) { upgrade_3to4(); upgrade_version(4) }
+  when (4) { say "The database is already upgraded" }
+  default  { say "Can't upgrade the database from version $version to 4" }
 }
 
 exit;
@@ -68,6 +69,12 @@ sub upgrade_2to3 {
   say "due to limitations in SQLite. You must delete the old database and";
   say "start over from scratch.";
   exit;
+}
+
+sub upgrade_3to4 {
+  my $stmt = q/ALTER TABLE pwe3 ADD COLUMN vcid INTEGER/;
+  $db->do($stmt) or die $db->errstr . "\n";
+  say "pwe3: added column vcid";
 }
 
 sub upgrade_version {

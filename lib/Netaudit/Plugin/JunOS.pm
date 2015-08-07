@@ -33,8 +33,10 @@ my $experimental_vrf = {
 
 # from JUNIPER-VPN-MIB
 my $jnxVpnPwTable = '.1.3.6.1.4.1.2636.3.26.1.4.1';
-my $jnxVpnRemotePeIdAddress = '10';    # column in VpnPwTable
-my $jnxVpnPwStatus          = '15';    # column in VpnPwTable
+#  column                     index
+my $jnxVpnPwLocalSiteId     = '7';
+my $jnxVpnRemotePeIdAddress = '10';
+my $jnxVpnPwStatus          = '15';
 
 my $jnxVpnTable           = '.1.3.6.1.4.1.2636.3.26.1.2.1';
 my $jnxVpnConfiguredSites = '8';
@@ -575,7 +577,7 @@ sub pwe3 {
   }xmso;
 
   my $href = $self->snmp->get_columns($jnxVpnPwTable, $jnxVpnRemotePeIdAddress,
-    $jnxVpnPwStatus);
+    $jnxVpnPwStatus, $jnxVpnPwLocalSiteId);
 
   # give up if no data here either
   return $AUDIT_NODATA unless $href;
@@ -597,6 +599,10 @@ sub pwe3 {
 
       when ($jnxVpnPwStatus) {
         $result->{$index}->{'status'} = $jnxVpnPwStatus{$href->{$k}};
+      }
+
+      when ($jnxVpnPwLocalSiteId) {
+        $result->{$index}->{'vcid'} = $href->{$k};
       }
     }
   }

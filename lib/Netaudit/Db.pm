@@ -45,7 +45,7 @@ use DBI;
 use Netaudit::Constants;
 use Readonly;
 
-Readonly my $SCHEMA_VER => 3;
+Readonly my $SCHEMA_VER => 4;
 
 =head1 ATTRIBUTES
 
@@ -338,7 +338,7 @@ CREATE TABLE db (
     version   INTEGER
 );
 --
-INSERT INTO db (version) VALUES ('3');
+INSERT INTO db (version) VALUES ('4');
 --
 CREATE TABLE IF NOT EXISTS runs (
     run     INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -406,6 +406,7 @@ CREATE TABLE IF NOT EXISTS pwe3 (
     interface   TEXT,
     status      TEXT,
     peer        TEXT,
+    vcid        INTEGER,
     FOREIGN KEY(run) REFERENCES runs(run) ON DELETE CASCADE
 );
 --

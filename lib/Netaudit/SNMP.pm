@@ -562,8 +562,12 @@ sub pwe3 {
     $peer   = $self->ip2dot($peer);
     $peer   = gethostname($peer);
 
-    $cb->(
-      {peer => $peer, interface => $ifname, status => $vc_status->{$status},});
+    $cb->({
+      peer      => $peer,
+      interface => $ifname,
+      status    => $vc_status->{$status},
+      vcid      => $vcid,
+    });
   }
 
   return 1;

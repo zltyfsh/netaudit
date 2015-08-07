@@ -37,8 +37,7 @@ my $HOST_RE = qr/ [a-z] [-.a-z0-9]+ /ix;
 #
 # TODO: this should come from the database
 #
-my @tables = (
-  {
+my @tables = ({
     name    => 'route_summary',
     descr   => 'Global routing summary',
     columns => [qw{ AFI Connected Static Local ISIS BGP }],
@@ -83,7 +82,7 @@ my @tables = (
   {
     name    => 'pwe3',
     descr   => 'PWE3 circuits',
-    columns => [qw{ Peer Interface Status }],
+    columns => [qw{ Peer Interface VCid Status }],
     order   => [qw{ peer }],
   },
 );

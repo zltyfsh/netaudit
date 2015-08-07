@@ -20,12 +20,9 @@ no if $] >= 5.017011, warnings => 'experimental::smartmatch';
 
 ### RegExps ###
 
-my $PROMPT    = '/<[\p{Alnum}\.-]+>\s*/';
-#my $TIMESTAMP = qr{ ^(Load for|Time source is) }xms;
-
-my @HANDLES = (
-  qr{ Huawei \s+ Versatile \s+ Routing \s+ Platform \s+ Software }iax,
-);
+my $PROMPT = '/<[\p{Alnum}\.-]+>\s*/';
+my @HANDLES
+  = (qr{ Huawei \s+ Versatile \s+ Routing \s+ Platform \s+ Software }iax);
 
 my $INTERFACE = qr{
   (?: GE | 100GE | Eth-Trunk )  # interface types
@@ -48,9 +45,9 @@ my $oid = {
     # Huawei experimental PW MIB
     PeerAddr   => '.1.3.6.1.4.1.2011.10.2.78.2.1.4',
     ID         => '.1.3.6.1.4.1.2011.10.2.78.2.1.2',
-    #Name       => '.1.3.6.1.4.1.2011.10.2.78.2.1. # no such OID
     OperStatus => '.1.3.6.1.4.1.2011.10.2.78.2.1.11',
-}};
+    # Name      => '.1.3.6.1.4.1.2011.10.2.78.2.1.?', # (no such OID)
+  }};
 
 # constructor
 
@@ -67,7 +64,6 @@ sub new {
 
 sub handles {
   my ($self, $sysdescr) = @_;
-
   return scalar grep { $sysdescr =~ m/$_/ } @HANDLES;
 }
 
@@ -76,7 +72,6 @@ sub handles {
 sub prompt {
   return $PROMPT;
 }
-
 
 ##### routing summary #####
 
@@ -231,7 +226,7 @@ sub isis_topology {
       # with metric 0 (pointing to it self).
 
       when (/$RE_ISIS/) {
-        if ($2 == 0) { $host = undef; next };
+        if ($2 == 0) { $host = undef; next }
         $host   = $1;
         $metric = $2;
       }
@@ -239,12 +234,8 @@ sub isis_topology {
       # match continuation lines with the neighbours
       when (/$RE_ISIS_CONT/) {
         next unless $host;
-        my $h = {
-          host    => $host,
-          metric  => $metric,
-          nexthop => $1,
-          afi     => 'ipv4',
-        };
+        my $h
+          = {host => $host, metric => $metric, nexthop => $1, afi => 'ipv4',};
 
         $self->db->insert('isis_topology', $h);
         $self->log->insert('isis_topology', $h);
@@ -291,7 +282,7 @@ sub isis_topology {
       # with metric 0 (pointing to it self).
 
       when (/$RE_ISIS/) {
-        if ($2 == 0) { $host = undef; next };
+        if ($2 == 0) { $host = undef; next }
         $host   = $1;
         $metric = $2;
       }
@@ -299,12 +290,8 @@ sub isis_topology {
       # match continuation lines with the neighbours
       when (/$RE_ISIS_CONT/) {
         next unless $host;
-        my $h = {
-          host    => $host,
-          metric  => $metric,
-          nexthop => $1,
-          afi     => 'ipv6',
-        };
+        my $h
+          = {host => $host, metric => $metric, nexthop => $1, afi => 'ipv6',};
 
         $self->db->insert('isis_topology', $h);
         $self->log->insert('isis_topology', $h);
@@ -512,12 +499,8 @@ sub bgp {
 
       # peering
       when (/$RE_BGP_vpnv4/) {
-        my $h = {
-          peer => $1,
-          asn  => $2,
-          afi  => $vrf ? 'ipv4' : 'vpnv4',
-          vrf  => $vrf
-        };
+        my $h = {peer => $1, asn => $2, afi => $vrf ? 'ipv4' : 'vpnv4',
+          vrf => $vrf,};
 
         $self->db->insert('bgp', $h);
         $self->log->insert('bgp', $h);
@@ -657,9 +640,14 @@ sub pwe3_cli {
         $flush->() if $entry;
       }
 
-      when (/Client \s Interface/x) { $entry->{interface} = $get_value->($line) }
-      when (/Destination/x)         { $entry->{peer}      = gethostname($get_value->($line)) }
-      when (/session \s state/x)    { $entry->{state}     = $get_value->($line) }
+      when (/Client \s Interface/x) {
+        $entry->{interface} = $get_value->($line)
+      }
+      when (/Destination/x) {
+        $entry->{peer} = gethostname($get_value->($line))
+      }
+      when (/VC \s state/x) { $entry->{status} = $get_value->($line) }
+      when (/VC \s ID/x)    { $entry->{vcid}   = $get_value->($line) }
     }
   }
 
