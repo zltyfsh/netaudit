@@ -14,6 +14,7 @@ use Regexp::Common;
 use Regexp::IPv6 qw{ $IPv6_re };
 
 use Netaudit::Constants;
+use Netaudit::DNS;
 
 no if $] >= 5.017011, warnings => 'experimental::smartmatch';
 
@@ -86,7 +87,7 @@ sub route_summary {
 
   # do ipv4 first
   $cmd = q{display ip routing-table statistics};
-  $self->log->info('running "$cmd"');
+  $self->log->info("running '$cmd'");
   foreach my $line ($self->cli->cmd($cmd)) {
     $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
     chomp($line);
@@ -130,7 +131,7 @@ sub route_summary {
 
   # and then ipv6
   $cmd = q{display ipv6 routing-table statistics};
-  $self->log->info('running "$cmd"');
+  $self->log->info("running '$cmd'");
   foreach my $line ($self->cli->cmd($cmd)) {
     $line =~ s!/P{IsPrint}!!g;    # remove all non-printables
     chomp($line);
@@ -253,7 +254,7 @@ sub isis_topology {
 
   # and then ipv6
   $cmd = q{display isis spf-tree ipv6 level-2};
-  $self->log->info('running "$cmd"');
+  $self->log->info("running '$cmd'");
   foreach my $line ($self->cli->cmd($cmd)) {
     chomp($line);
 
@@ -352,7 +353,7 @@ sub isis_neighbour {
   };
 
   my $cmd = q{display isis peer};
-  $self->log->info('running "$cmd"');
+  $self->log->info("running '$cmd'");
   foreach my $line ($self->cli->cmd($cmd)) {
     chomp($line);
 
@@ -415,7 +416,7 @@ sub bgp {
 
   # do ipv4 first
   $cmd = q{display bgp peer};
-  $self->log->info('running "$cmd"');
+  $self->log->info("running '$cmd'");
   foreach my $line ($self->cli->cmd($cmd)) {
     chomp($line);
 
@@ -450,7 +451,7 @@ sub bgp {
   }xmso;
 
   $cmd = q{display bgp ipv6 peer};
-  $self->log->info('running "$cmd"');
+  $self->log->info("running '$cmd'");
   foreach my $line ($self->cli->cmd($cmd)) {
     chomp($line);
 
@@ -484,7 +485,7 @@ sub bgp {
   }xmso;
 
   $cmd = q{display bgp vpnv4 all peer};
-  $self->log->info('running "$cmd"');
+  $self->log->info("running '$cmd'");
   foreach my $line ($self->cli->cmd($cmd)) {
     chomp($line);
 
@@ -579,8 +580,93 @@ sub pwe3 {
   # if that failed try again with huawei mib
   return $AUDIT_OK if $self->snmp->pwe3($cb, $oid->{'pwe3'});
 
-  # if we got here, there are no data
-  return $AUDIT_NODATA;
+  # Resort to old fashioned screen scraping
+  return $self->pwe3_cli;
+}
+
+sub pwe3_cli {
+  my $self = shift;
+
+  my $result = $AUDIT_NODATA;
+  my $entry;
+
+  my $flush = sub {
+    $self->db->insert('pwe3', $entry);
+    $self->log->insert('pwe3', $entry);
+
+    $result = $AUDIT_OK;
+
+    undef $entry;
+  };
+
+  my $get_value = sub {
+    my $line = shift;
+    my (undef, $val) = split /:/, $line;
+    $val =~ s/^\s+|\s+$//g;
+    return $val;
+  };
+
+  my $cmd = q{display mpls l2vc brief};
+  $self->log->info("running '$cmd'");
+  foreach my $line ($self->cli->cmd($cmd)) {
+    chomp($line);
+
+    # Example output:
+    #
+    # Total LDP VC : 11     5 up       6 down
+    #
+    # *Client Interface     : GigabitEthernet0/3/8.22220100
+    #  Administrator PW     : no
+    #  AC status            : up
+    #  VC state             : down
+    #  Label state          : 0
+    #  Token state          : 0
+    #  VC ID                : 21163333
+    #  VC Type              : VLAN
+    #  session state        : up
+    #  Destination          : 172.16.1.13
+    #  link state           : down
+    #
+    # *Client Interface     : GigabitEthernet0/3/8.789
+    #  Administrator PW     : no
+    #  AC status            : up
+    #  VC state             : up
+    #  Label state          : 0
+    #  Token state          : 0
+    #  VC ID                : 2822111100
+    #  VC Type              : VLAN
+    #  session state        : up
+    #  Destination          : 172.16.1.10
+    #  link state           : up
+    #
+    # *Client Interface     : GigabitEthernet0/3/8.13240242
+    #  Administrator PW     : no
+    #  AC status            : up
+    #  VC state             : down
+    #  Label state          : 0
+    #  Token state          : 0
+    #  VC ID                : 2802322201
+    #  VC Type              : Ethernet
+    #  session state        : up
+    #  Destination          : 172.16.1.13
+    #  link state           : down
+
+    for ($line) {
+      when (/^\s*$/) {
+        # A new-line terminates a section, time to flush data
+        $flush->() if $entry;
+      }
+
+      when (/Client \s Interface/x) { $entry->{interface} = $get_value->($line) }
+      when (/Destination/x)         { $entry->{peer}      = gethostname($get_value->($line)) }
+      when (/session \s state/x)    { $entry->{state}     = $get_value->($line) }
+    }
+  }
+
+  # flush last $entry?
+  $flush->() if $entry;
+
+  return $result;
 }
 
 1;
