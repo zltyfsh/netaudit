@@ -9,77 +9,77 @@ NEXT
 
 3.2 --	2014-04-09
 	* netaudit:
-	Added 'timeout' parameter
-	Removed snmp cleanup after snmp failure
+	- Added 'timeout' parameter
+	- Removed snmp cleanup after snmp failure
 
 3.1.1 -- 2013-02-21
 	* netreport --diff:
-	Fixed searching for a partial specified hostname
-	Fixed error output when run is not found in
-	Added error output if there is no last two runs for a hostname
+	- Fixed searching for a partial specified hostname
+	- Fixed error output when run is not found in
+	- Added error output if there is no last two runs for a hostname
 	* netreport --full:
-	Added partital hostname heuretics from --diff
+	- Added partital hostname heuretics from --diff
 	* netreport --list:
-	Fixed problem when no argument to --list is given
+	- Fixed problem when no argument to --list is given
 
 3.1 -- 2013-02-17
-	'--diff' mode is default in netreport. If no hostname is given
-	on command-line run diff over the hosts in both last 2 runs. If
-	a hostname IS given, run diff over last 2 runs with data for the
-	hostname.
+	- '--diff' mode is default in netreport. If no hostname is given
+	  on command-line run diff over the hosts in both last 2 runs. If
+	  a hostname IS given, run diff over last 2 runs with data for the
+	  hostname.
 
 3.0.3 -- 2013-02-09
-	Fixed problem logging an undefined sysDescr
+	- Fixed problem logging an undefined sysDescr
 
 3.0.2 -- 2013-01-08
-	Fixed Prompt-problem on ASR9k
-	Fixed error message output on failed login
-	Added debug logging of sysDescr and Plugin used
+	- Fixed Prompt-problem on ASR9k
+	- Fixed error message output on failed login
+	- Added debug logging of sysDescr and Plugin used
 
 3.0.1 -- 2013-01-08
-	Updated Changelog
-	Updated info on new netaudit.conf parameters (logging)
+	- Updated Changelog
+	- Updated info on new netaudit.conf parameters (logging)
 
 3.0 -- 2013-01-08
-	Moved away from Mouse to Mojo
-	The SQL schema is now included in the database module (DATA section)
-	Added logging to file
-	Fixed 'netaudit --diff hostname'
+	- Moved away from Mouse to Mojo
+	- The SQL schema is now included in the database module (DATA section)
+	- Added logging to file
+	- Fixed 'netaudit --diff hostname'
 
 2.2 -- 2012-12-03
 	* lib/Netaudit/Constants:
-	Added Pronea style of hostnames
+	- Added Pronea style of hostnames
 
 2.1 -- 2012-09-20
 	* bin/netaudit:
-	Moved config file code to new module Netaudit::Config
+	- Moved config file code to new module Netaudit::Config
 	
 	* lib/Netaudit/Config:
-	The config file is now searched for in several places
+	- The config file is now searched for in several places
 
 	* bin/netreport:
-	Common config file with bin/netaudit
-	Changed command arguments:
-	- database is removed
-	- compare|c is renamed to diff|d
-	- configfile|c is added
+	- Common config file with bin/netaudit
+	- Changed command arguments:
+	    - database is removed
+	    - compare|c is renamed to diff|d
+	    - configfile|c is added
 
 	* share/schema.sql, lib/Netaudit/Db:
-	Bump schema version to 2
+	- Bump schema version to 2
 
 	* share/upgrade1.x-2.1:
-	Renamed from share/upgrade10-20
-	Added check of database version before upgrade
-	Added upgrade of schema version
+	- Renamed from share/upgrade10-20
+	- Added check of database version before upgrade
+	- Added upgrade of schema version
 
 
 2.0.2 -- 2012-09-18
 	* lib/Netaudit/SNMP, lib/Netaudit/Db:
-	Added POD
+	- Added POD
 
 2.0.1 -- 2012-09-17
 	* lib/Netaudit/SNMP:
-	Having constant Mouse attributes were cumbersome. They are now 
+	- Having constant Mouse attributes were cumbersome. They are now 
 	regular globals.  
 
 2.0 -- 2012-09-12
@@ -104,18 +104,18 @@ NEXT
 	- LSP-id is removed from isis_topology 
 
 	* share/upgrade10-20:
-	Database upgrade script added
+	- Database upgrade script added
 
 	* bin/netreport:
-	Dependencies of recommended modules Term::ANSIColor and Text::Aligner
+	- Dependencies of recommended modules Term::ANSIColor and Text::Aligner
 	are resolved at runtime. If they are not avaliable or are too old
 	colorization is turned off.
 
 	* Build.PL:
-	Term::ANSIColor and Text::Aligner is just Recommends
+	- Term::ANSIColor and Text::Aligner is just Recommends
 
 	* lib/Netaudit/SNMP:
-	Removed some semicolons that annoyed Mouse
+	- Removed some semicolons that annoyed Mouse
 
 1.05.1 -- 20120520
 	* bin/netreport: 
@@ -133,13 +133,16 @@ NEXT
 	* l/N/Db.pm: Added PrintError = 0
 
 1.04 -- 20120511
-	* bin/netaudit: Always ask for password when --username used
-	* bin/netreport: Fixed run=0 bug in isisreport (regression 
-	  from [12d33d])
+	* bin/netaudit:
+	  - Always ask for password when --username used
+	* bin/netreport: 
+	  - Fixed run=0 bug in isisreport (regression from [12d33d])
 
 1.03 -- 20120509
-	* l/N/Db.pm, l/N/SNMP.pm, Build.PL: Replaced Moose with Mouse
-	* Build.PL: Added Text::Aligner to requirements
+	* l/N/Db.pm, l/N/SNMP.pm, Build.PL:
+	  - Replaced Moose with Mouse
+	* Build.PL:
+	  - Added Text::Aligner to requirements
 	* bin/netreport: 
 	  - Check if Text::Aligner and Term::ANSIColor do have
 	    sufficient color filtering, disable coloring if not.
@@ -150,162 +153,178 @@ NEXT
 	  - Removed auto-generated license
 
 1.02 -- 20120509
-	* Build.PL: Remove auto-creation of license
-	* l/N/Plugins/IOS.pm: Fixed prompt, can also end on >
-	* bin/netaudit: Re-instated development as config file parameter
+	* Build.PL:
+	  - Remove auto-creation of license
+	* l/N/Plugins/IOS.pm:
+	  - Fixed prompt, can also end on >
+	* bin/netaudit:
+	  - Re-instated development as config file parameter
 
 1.01 -- 20120508
-	* bin/netaudit: Added config file option password
-	* bin/netaudit: Added description of what audits is done to man page
+	* bin/netaudit:
+	  - Added config file option password
+	* bin/netaudit:
+	  - Added description of what audits is done to man page
 
 1.00 -- 20120405
-	* l/N/Db.pm: Schema init depends on SQLite version
-	* *: Reformat code with perltidy
-	* *: Applied guidelines from perlcritic --stern
-	* Build.Pl: Added automatic build of LICENSE
-	* bin/netreport: Added even more colored output
+	- Reformat code with perltidy
+	- Applied guidelines from perlcritic --stern
+	* l/N/Db.pm:
+	  - Schema init depends on SQLite version
+	* Build.PL:
+	  - Added automatic build of LICENSE
+	* bin/netreport:
+	  - Added even more colored output
 
 0.9919 -- 20120319
-	* l/N/SNMP.pm: filter interfaces not matching certain ifType(s)
-	* l/N/Db.pm: added check of database version. this lead to inclusion
-	  of a new table (db) in the database
-	* UPGRADE: New boilerplate file
-	* Bulid.PL, bin/netreport: Replaced File::ShareDir with M::B code
-	* bin/nertreport: Added more colored output
+	* l/N/SNMP.pm:
+	  - Filter interfaces not matching certain ifType(s)
+	* l/N/Db.pm:
+	  - Added check of database version. this lead to inclusion
+	    of a new table (db) in the database
+	* UPGRADE:
+	  - New boilerplate file
+	* Bulid.PL, bin/netreport:
+	  - Replaced File::ShareDir with M::B code
+	* bin/netreport:
+	  - Added more colored output
 
 0.9918 -- 20120314
-	* bin/netreport: formattuple didn't calculate the difference between
-	  ols and new when numeric.
-	* bin/netreport: added coloring of output if Term::ANSIColor is of 2.01
-	  or newer (have a sub colorstrip)
+	* bin/netreport:
+	  - formattuple didn't calculate the difference between
+	    old and new when numeric.
+	* bin/netreport:
+	  - Added coloring of output if Term::ANSIColor is of 2.01
+	    or newer (have a sub colorstrip)
 
 0.9917 -- 20120307
-	* Added MANIFEST.SKIP to package
+	- Added MANIFEST.SKIP to package
 
 0.9916 -- 20120302
-	* bin/netreport: Adding a reporting of ISIS SPT, does IPv4 and IPv6 agree (they should)?
+	* bin/netreport:
+	  - Adding a reporting of ISIS SPT, does IPv4 and IPv6 agree (they should)?
 
 0.9915 -- 20120302
-	* Adding more detalied sub-audit reporting
+	- Adding more detalied sub-audit reporting
 
 0.9914 -- 20120301
-	* Added "interface" audit and reporting
-	* Removed "--development" options
-	* Finished "differential reporting"
+	- Added "interface" audit and reporting
+	- Removed "--development" options
+	- Finished "differential reporting"
 
 0.9913 -- 20120223
-	* Moved back to 5.10 requirement. The 5.8.8 switch source filter cannot
+	- Moved back to 5.10 requirement. The 5.8.8 switch source filter cannot
 	  handle our complex RegExps.
 
 0.9912 -- 20120221
-	* Added Config::Simple from Build.PL
-	* Renoved Data::Dumper::Simple from modules
+	- Added Config::Simple from Build.PL
+	- Renoved Data::Dumper::Simple from modules
 
 0.9911 -- 20120221
-	Changed perl 5.10 type "use feature 'switch'" to 5.8.8 compatible
-	"use Switch 'Perl6'"
+	- Changed perl 5.10 type "use feature 'switch'" to 5.8.8 compatible
+	  "use Switch 'Perl6'"
 
 0.9910 -- 20120221
 	Total rewrite of the application. The major changes are:
-	* Switch from dbtree database to SQLite3
-	* Added modular support of networking equipment
-	* Now supports Cisco IOS, Cisco IOS XR and Juniper JunOS type
+	- Switch from dbtree database to SQLite3
+	- Added modular support of networking equipment
+	- Now supports Cisco IOS, Cisco IOS XR and Juniper JunOS type
 	  of devices
-	* Removed some redundant audit runs (vrf_summary and screen scraped
+	- Removed some redundant audit runs (vrf_summary and screen scraped
 	  EoMPLS)
-	* Added support for IPv6 (but not VPNv6)
+	- Added support for IPv6 (but not VPNv6)
 
 0.13 -- 20100215
-        Replaced Net::Telnet::Cisco with parent Net::Telnet. Why?
-        * We don't need the added functionality
-        * The FreeBSD (CPAN) version of N::T::C is very buggy, the Debian port works OK.
-        Fixed bug in VRF table - old VRF's were not deleted
+	- Replaced Net::Telnet::Cisco with parent Net::Telnet. Why?
+	  - We don't need the added functionality
+	  - The FreeBSD (CPAN) version of N::T::C is very buggy, the Debian port works OK.
+	- Fixed bug in VRF table - old VRF's were not deleted
 
 0.12_05 -- 20091115
-	Increased telnet buffer size to 3MB
-	Fixed RegExp bug in ISIS Topology. To match stable LSP's (**) '*' doesn't need to
-   	be escaped in charset. IOS and XR.
+	- Increased telnet buffer size to 3MB
+	- Fixed RegExp bug in ISIS Topology. To match stable LSP's (**) '*' doesn't need to
+	  be escaped in charset. IOS and XR.
 
 0.12_04 -- 20091113
-	Doh, ISIS Top is using an ARRAY for next-hop-interfaces. Fixed on XR.
+	- Doh, ISIS Top is using an ARRAY for next-hop-interfaces. Fixed on XR.
 
 0.12_03 -- 20091113
-	Fixed bug is ISIS topology on XR.: do not use fixed columns
+	- Fixed bug is ISIS topology on XR.: do not use fixed columns
 
 0.12_02 -- 20091104
-	Fixed bug in ISIS topology, now '-' is allowed in hostnames
+	- Fixed bug in ISIS topology, now '-' is allowed in hostnames
 
 0.12_01 -- 20091104
-	Debug version
+	- Debug version
 
 0.12 -- 20091104
-	Added interface to ISIS topology output (with a change in the database)
-	Fixed bug with XR-prompt on CRS-1
+	- Added interface to ISIS topology output (with a change in the database)
+	 - Fixed bug with XR-prompt on CRS-1
 
 0.11 -- 20091103
-	Exec timestamps are disabled
-	"^Area:" srtrings are filtered in ISIS outputs
-	Added generic IOS/XR filtering on all command output
-	Added garbage filtering on XR command output
+	- Exec timestamps are disabled
+	- "^Area:" strings are filtered in ISIS outputs
+	- Added generic IOS/XR filtering on all command output
+	- Added garbage filtering on XR command output
 
 0.10_01 -- 20091103
-	Column extraction on ISIS Adj now is done on fixed columns on IOS.
+	- Column extraction on ISIS Adj now is done on fixed columns on IOS.
 
 0.10 -- 20091102
-	Added audit of ISIS neighbors
+	- Added audit of ISIS neighbors
 
 0.09 -- 20091026
-	Addition of the --readonly option to bin/netaudit
-	Slightly modified the rule for when to "alarm" EoMPLS PW's
-	Added information to POD about "what's a change"
+	- Addition of the --readonly option to bin/netaudit
+	- Slightly modified the rule for when to "alarm" EoMPLS PW's
+	- Added information to POD about "what's a change"
 
 0.08 -- 20091026
-	Print last state/prefixes received for removed BGP-peers
+	- Print last state/prefixes received for removed BGP-peers
 
 	Bugfixes:
-	* lib/Netaudit/Parse now supports XR 3.8 in parsing of EoMPLS statistics
+	- lib/Netaudit/Parse now supports XR 3.8 in parsing of EoMPLS statistics
 
 0.07_02 -- 20091023
-	Update of POD in bin/netaudit with new company name
+	- Update of POD in bin/netaudit with new company name
 
 0.07_01 -- 20091023
-	Update of POD in bin/netaudit to new name, and new email address
+	- Update of POD in bin/netaudit to new name, and new email address
 
 0.07 -- 200901023
-	Rename of *audit* to *netaudit*
+	- Rename of *audit* to *netaudit*
 
 0.06 -- 20091023
-    	Massive cleanup of unused/similar subs in lib/Audit/Db.pm
+	- Massive cleanup of unused/similar subs in lib/Audit/Db.pm
 
-    	lib/Audit/Db.pm
-    	* Removal of all ipv4 and vpnv4 specific subs
-    	* Rename of get2/set2 to get/set. The old get/set is deleted
+	* lib/Audit/Db.pm:
+	  - Removal of all ipv4 and vpnv4 specific subs
+	  - Rename of get2/set2 to get/set. The old get/set is deleted
 
-    	lib/Audit/Parse.pm
-    	* Small fix regarding IS-IS neighbour filtering on IOS XR
+	* lib/Audit/Parse.pm:
+	  - Small fix regarding IS-IS neighbour filtering on IOS XR
 
-    	bin/audit
-    	* Adaption to new subs in lib/Audit/Db.pm
+	* bin/audit:
+	  - Adaption to new subs in lib/Audit/Db.pm
 
 0.05 -- 20091015
 	Added "show isis topology" commands to bin/audit and lib/Audit/Parse.pm
 
-	bin/audit
-	* added VERSION on man/help pages
-	* moved parts of POD to beginning of file
+	* bin/audit:
+	  - added VERSION on man/help pages
+	  - moved parts of POD to beginning of file
 
 0.04_01 -- 20091008
-	bin/audit
-	* Added a "use lib" with a path to "../lib/perl5".
+	* bin/audit:
+	  - Added a "use lib" with a path to "../lib/perl5".
 
 0.04 -- 20091008
-	lib/Audit/Parse.pm
-	- Fixed RE matching VRF-name in "show ip bgp vpnv4 all neighbor" output
+	* lib/Audit/Parse.pm:
+	  - Fixed RE matching VRF-name in "show ip bgp vpnv4 all neighbor" output
 	
-	bin/audit
-	- Changed debug in default off
-	- Added "secret" debug option in config file (not so secret any more...)
-	- EoMPLS "alarm" now fires if the number of packets are less then last reading
+	* bin/audit:
+	  - Changed debug in default off
+	  - Added "secret" debug option in config file (not so secret any more...)
+	  - EoMPLS "alarm" now fires if the number of packets are less then last reading
 
-	bin/catauditdb
-	- Added script to module
+	* bin/catauditdb:
+	  - Added script to module
