@@ -5,6 +5,7 @@ NEXT
 	Store all IPv6 addresses in lowercase (as recommended by RFC 5952)
 	Added support for Huawei NE-routers
 	Added support for diff between hosts (and runs)
+	Renamed database upgrade script to "upgrade_netaudit_db" and moved it into bin/ (to be more easily accessible)
 
 3.2 --	2014-04-09
 	* netaudit:

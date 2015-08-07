@@ -1,0 +1,77 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+use feature qw{ say switch };
+
+no if $] >= 5.017011, warnings => 'experimental::smartmatch';
+
+use DBI;
+use Regexp::Common;
+use Socket qw{ inet_aton AF_INET };
+use Netaudit::DNS;
+
+my $database = shift @ARGV or die "Usage: $0 <database>\n";
+
+my $db = DBI->connect("dbi:SQLite:dbname=" . $database)
+  or die "Cannot connect to database " . $DBI::errstr . "\n";
+
+my $version = get_db_version();
+for ($version) {
+  when (1) { upgrade_1to2(); upgrade_2to3(); }
+  when (2) { upgrade_2to3(); }
+  when (3) { say "The database is already upgraded" }
+  default  { say "Can't upgrade the database from version $version to 3" }
+}
+
+exit;
+
+sub get_db_version {
+  # check schema version
+  my $stmt = q/SELECT version FROM db/;
+  my $aref = $db->selectrow_arrayref($stmt);
+  die "Unknown database\n" unless $aref;
+  return $aref->[0];
+}
+
+sub upgrade_1to2 {
+  # update isis_topology
+  my $stmt = q/
+    UPDATE isis_topology
+    SET host = rtrim(host, '.0_')
+    WHERE host LIKE '%.0_'
+  /;
+
+  my $rows = $db->do($stmt) or die $db->errstr . "\n";
+
+  say "isis_topology: changed $rows records" if $rows > 0;
+
+  # update pwe3 with hostnames
+  $stmt = q/SELECT DISTINCT peer FROM pwe3/;
+  my $aref = $db->selectcol_arrayref($stmt);
+
+  $stmt = q/UPDATE pwe3 SET peer = ? WHERE peer = ?/;
+  my $sth = $db->prepare($stmt);
+
+  foreach my $oldpeer (@{$aref}) {
+    next unless $oldpeer =~ $RE{net}{IPv4};
+
+    my $newpeer = gethostname($oldpeer);
+    $sth->execute($newpeer, $oldpeer);
+
+    say "pwe3: updated $oldpeer to $newpeer";
+  }
+}
+
+sub upgrade_2to3 {
+  say "Unfortunately the database can't be upgraded from version 2 to 3";
+  say "due to limitations in SQLite. You must delete the old database and";
+  say "start over from scratch.";
+  exit;
+}
+
+sub upgrade_version {
+  my $version = shift;
+  my $stmt    = qq/UPDATE db SET version = $version/;
+  $db->do($stmt) or die $db->errstr . "\n";
+}
