@@ -42,6 +42,7 @@ my @tables = ({
     descr   => 'Global routing summary',
     columns => [qw{ AFI Connected Static Local ISIS BGP }],
     order   => [qw{ afi }],
+    show    => 'routing',
   },
 
   {
@@ -49,6 +50,7 @@ my @tables = ({
     descr   => 'IS-IS neighbours',
     columns => [qw{ Neighbour Interface State }],
     order   => [qw{ interface }],
+    show    => 'isis-neighbours',
   },
 
   {
@@ -56,6 +58,7 @@ my @tables = ({
     descr   => 'IS-IS topology',
     columns => [qw{ Host AFI NextHop Metric }],
     order   => [qw{ host afi }],
+    show    => 'isis-topology',
   },
 
   {
@@ -63,6 +66,7 @@ my @tables = ({
     descr   => 'BGP peerings',
     columns => [qw{ Peer AFI VRF ASN Prefixes }],
     order   => [qw{ peer afi vrf }],
+    show    => 'bgp',
   },
 
   {
@@ -70,6 +74,7 @@ my @tables = ({
     descr   => "Interfaces with status and properties",
     columns => [qw{ Descr AdminStatus OperStatus IPv6Status MTU Speed }],
     order   => [qw{ descr }],
+    show    => 'interfaces',
   },
 
   {
@@ -77,6 +82,7 @@ my @tables = ({
     descr   => "VRF's and interfaces",
     columns => [qw{ VRF Active Associated }],
     order   => [qw{ vrf }],
+    show    => 'vrf',
   },
 
   {
@@ -84,13 +90,14 @@ my @tables = ({
     descr   => 'PWE3 circuits',
     columns => [qw{ Peer Interface VCid Status }],
     order   => [qw{ peer }],
+    show    => 'pwe3',
   },
 );
 
 # options
 my %opts = (
-  colors => -t STDIN && -t STDOUT,    # no colors if not interactive
-  configfile => '',                   # make sure it exists
+  colors     => -t STDIN && -t STDOUT, # no colors if not interactive
+  configfile => '',                    # make sure it exists
 );
 
 Getopt::Long::Configure("auto_version");
@@ -108,6 +115,7 @@ GetOptions(
   'man',
   'purge=s',          # purge runs
   'runs!',            # lists which hosts in each run
+  'show|s=s@'         # select which reports to show
 ) or pod2usage(2);
 #<<<
 pod2usage(1) if $opts{help};
@@ -133,6 +141,11 @@ eval {
   Text::Aligner->import();
   die unless $Text::Aligner::VERSION ge '0.06';
 } or $opts{colors} = 0;
+
+# Parse --show parameter
+@{$opts->{show}} = split(/,/, join(',', @{$opts->{show} // []}));
+# if --show all is entered, set show to empty array
+$opts->{show} = [] if grep { /^all$/ } @{$opts->{show}};
 
 # Check which mode we are in
 if (exists $opts{list}) {
@@ -252,7 +265,11 @@ sub fullreport {
   say "Full report of the audit run at: ". _to_date($epoch);
   say '';
 
+  my @show = @{$opts->{show}};
+
   foreach my $href (@tables) {
+    next if @show && grep { /^$href->{show}$/ } @show;
+
     # Add 'Hostname' to columns and order
     my @columns = ( 'Hostname', @{$href->{columns}} );
     my @order   = ( 'hostname', @{$href->{order}} );
@@ -411,7 +428,11 @@ sub diffreport {
   _print_run_header($from);
   _print_run_header($to);
 
+  my @show = @{$opts->{show}};
+
   foreach my $table (@tables) {
+    next if @show && grep { /^$href->{show}$/ } @show;
+
     my ($old, $new);
     foreach my $host (@hosts) {
       my $o = _get_dbtable($table, $from, $host);
@@ -899,7 +920,7 @@ is data for C<hostname>.
 
 =head1 OPTIONS
 
-=over
+=over 4
 
 =item B<-C> | B<--colors>
 
@@ -914,7 +935,7 @@ Default is ON unless when run in a non-interactively enviroment
 The location of the configuration file to use.
 A config file is searched for in the following order:
 
-=over 2
+=over 4
 
 =item * B<--configfile> argument
 
@@ -932,6 +953,49 @@ Note that the B<first> found config file is used, there is B<NO>
 hierarchy of config files.
 
 The format of the config file is specified in L<netaudit(1)>
+
+=item B<< --show <report>[,<report>...] >>
+
+Show only I<report> in output from L</Full report> or L</Diff mode>.
+
+The supported I<report>s are:
+
+=over 4
+
+=item * all
+
+Show all reports.
+This is the default.
+
+=item * routing
+
+Show the route summary report.
+
+=item * isis-neighbours
+
+Show the isis neighbours report.
+
+=item * isis-topology
+
+Show the isis topology report.
+
+=item * interfaces
+
+Show the interfaces report.
+
+=item * bgp
+
+Show the BGP report.
+
+=item * vrf
+
+Show the VRF report.
+
+=item * pwe3
+
+Show the PWE3 report.
+
+=back
 
 =item B<hostname>
 
